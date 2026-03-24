@@ -1,0 +1,27 @@
+PRISMA CLIENT REGENERATION COMPLETE
+====================================
+
+ISSUE:
+------
+The backend was throwing errors about unknown field `verificationStatus` because the Prisma client was generated before the schema was updated with the new verification fields.
+
+SOLUTION:
+---------
+Regenerated Prisma clients for all three backends:
+✅ fyp-admin/backend - npx prisma generate
+✅ fyp-doctor/backend - npx prisma generate  
+✅ fyp-patient/backend - npx prisma generate
+
+NEXT STEPS:
+-----------
+1. Restart the admin backend: npm run dev
+2. The backend should now recognize all verification fields
+3. Test the doctor verification workflow
+
+IMPORTANT NOTE:
+---------------
+Whenever you update the Prisma schema, you MUST run `npx prisma generate` to regenerate the Prisma client. Otherwise, the TypeScript types and runtime client won't include the new fields.
+
+For production deployment:
+- Run migrations: npx prisma migrate deploy (from admin backend only)
+- Generate clients: npx prisma generate (in each backend before deployment)

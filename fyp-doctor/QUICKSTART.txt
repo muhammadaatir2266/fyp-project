@@ -1,0 +1,175 @@
+DOCTOR DASHBOARD - COMPLETE QUICKSTART GUIDE
+============================================
+
+This guide will get both frontend and backend running in minutes!
+
+PREREQUISITES:
+- Node.js v18+ installed
+- PostgreSQL database running
+- Two terminal windows
+
+═══════════════════════════════════════════════════════════════
+
+STEP 1: SETUP BACKEND
+═══════════════════════════════════════════════════════════════
+
+Terminal 1 - Backend Setup:
+
+1. Navigate to backend folder:
+   cd fyp-doctor/backend
+
+2. Install dependencies:
+   npm install
+
+3. Configure database:
+   - Open backend/.env file
+   - Update DATABASE_URL with your PostgreSQL credentials:
+     DATABASE_URL="postgresql://username:password@localhost:5432/medical_assistant?schema=public"
+
+4. Setup database:
+   npx prisma generate
+   npx prisma migrate dev --name init
+   npx prisma db seed
+
+5. Start backend server:
+   npm run dev
+
+   ✅ Backend running on http://localhost:5000
+
+═══════════════════════════════════════════════════════════════
+
+STEP 2: SETUP FRONTEND
+═══════════════════════════════════════════════════════════════
+
+Terminal 2 - Frontend Setup:
+
+1. Navigate to frontend folder:
+   cd fyp-doctor/frontend
+
+2. Install dependencies:
+   npm install
+
+3. Start frontend:
+   npm run dev
+
+   ✅ Frontend running on http://localhost:3001
+
+═══════════════════════════════════════════════════════════════
+
+STEP 3: LOGIN AND TEST
+═══════════════════════════════════════════════════════════════
+
+1. Open browser: http://localhost:3001
+
+2. Login with:
+   Email: doctor@example.com
+   Password: doctor123
+
+3. Explore the dashboard:
+   - Dashboard with stats
+   - Today's appointments
+   - Patient records
+   - Call logs
+   - Manage availability
+   - Update profile
+
+═══════════════════════════════════════════════════════════════
+
+SAMPLE DATA INCLUDED:
+═══════════════════════════════════════════════════════════════
+
+✅ 1 Doctor Account (Dr. John Smith - Cardiologist)
+✅ 2 Patients (Alice Johnson, Bob Williams)
+✅ 3 Appointments (today and upcoming)
+✅ Chat history with AI predictions
+✅ 2 Call logs with transcripts
+✅ Patient symptoms and medical history
+
+═══════════════════════════════════════════════════════════════
+
+TROUBLESHOOTING:
+═══════════════════════════════════════════════════════════════
+
+❌ Backend won't start:
+   - Check PostgreSQL is running
+   - Verify DATABASE_URL in backend/.env
+   - Run: npx prisma generate
+
+❌ Frontend can't connect to backend:
+   - Ensure backend is running on port 5000
+   - Check .env.local has: NEXT_PUBLIC_API_URL=http://localhost:5000/api
+
+❌ Login fails:
+   - Verify database was seeded: npx prisma db seed
+   - Check backend logs for errors
+
+❌ Port already in use:
+   - Backend: Change PORT in backend/.env
+   - Frontend: Change port in package.json dev script
+
+═══════════════════════════════════════════════════════════════
+
+USEFUL COMMANDS:
+═══════════════════════════════════════════════════════════════
+
+Backend:
+  npm run dev          - Start development server
+  npx prisma studio    - Open database GUI
+  npx prisma db seed   - Reseed database
+
+Frontend:
+  npm run dev          - Start development server
+  npm run build        - Build for production
+
+═══════════════════════════════════════════════════════════════
+
+WHAT'S INCLUDED:
+═══════════════════════════════════════════════════════════════
+
+Frontend (fyp-doctor/):
+  ✅ Next.js 16 with TypeScript
+  ✅ Tailwind CSS v4
+  ✅ Shadcn UI components
+  ✅ 7 complete pages
+  ✅ Responsive design
+  ✅ JWT authentication
+
+Backend (fyp-doctor/backend/):
+  ✅ Express.js API
+  ✅ Prisma ORM
+  ✅ PostgreSQL database
+  ✅ JWT authentication
+  ✅ 20+ API endpoints
+  ✅ Sample data seeding
+
+═══════════════════════════════════════════════════════════════
+
+NEXT STEPS:
+═══════════════════════════════════════════════════════════════
+
+1. Customize the doctor profile
+2. Add more patients and appointments
+3. Integrate with existing patient app backend
+4. Connect AI prediction service
+5. Setup voice calling agent (Retell AI)
+6. Deploy to production
+
+═══════════════════════════════════════════════════════════════
+
+SUPPORT:
+═══════════════════════════════════════════════════════════════
+
+For detailed setup instructions:
+- Frontend: See SETUP.txt
+- Backend: See backend/BACKEND_SETUP.txt
+
+Database GUI:
+  npx prisma studio
+  Opens at: http://localhost:5555
+
+API Health Check:
+  http://localhost:5000/api/health
+
+═══════════════════════════════════════════════════════════════
+
+🎉 You're all set! Happy coding!

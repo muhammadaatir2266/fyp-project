@@ -1,0 +1,151 @@
+===========================================
+DATABASE MIGRATION STEPS
+Adding Unavailable Dates Feature
+===========================================
+
+IMPORTANT: Follow these steps in order to update your database schema
+
+===========================================
+STEP 1: BACKUP YOUR DATABASE (RECOMMENDED)
+===========================================
+
+Before making any changes, backup your database:
+
+pg_dump -U your_username -d your_database_name > backup_$(date +%Y%m%d).sql
+
+===========================================
+STEP 2: NAVIGATE TO BACKEND DIRECTORY
+===========================================
+
+cd fyp-doctor/backend
+
+===========================================
+STEP 3: GENERATE PRISMA CLIENT
+===========================================
+
+This updates the Prisma client with the new schema changes:
+
+npx prisma generate
+
+Expected Output:
+✔ Generated Prisma Client
+
+===========================================
+STEP 4: CREATE AND APPLY MIGRATION
+===========================================
+
+This creates a new migration file and applies it to your database:
+
+npx prisma migrate dev --name add_unavailable_dates_field
+
+Expected Output:
+✔ Prisma Migrate applied the following migration(s):
+  └─ 20240315XXXXXX_add_unavailable_dates_field/
+     └─ migration.sql
+
+What this does:
+- Adds "unavailableDates" column to Doctor table
+- Sets default value to empty array []
+- Updates existing records with empty array
+
+===========================================
+STEP 5: VERIFY MIGRATION
+===========================================
+
+Check that the migration was successful:
+
+npx prisma studio
+
+This opens Prisma Studio in your browser where you can:
+1. Navigate to the Doctor model
+2. Verify the "unavailableDates" field exists
+3. Check that it's an array type
+
+===========================================
+STEP 6: RESTART BACKEND SERVER
+===========================================
+
+Stop the current server (Ctrl+C) and restart:
+
+npm run dev
+
+Expected Output:
+🚀 Doctor Dashboard API running on port 5000
+📍 Frontend URL: http://localhost:3001
+🏥 Environment: development
+📞 Public API available at: http://localhost:5000/api/public
+
+===========================================
+STEP 7: TEST THE NEW ENDPOINTS
+===========================================
+
+Test that the public API is working:
+
+# Test health check
+curl http://localhost:5000/api/health
+
+# Test get doctors endpoint
+curl http://localhost:5000/api/public/doctors
+
+Expected Response:
+{
+  "success": true,
+  "count": X,
+  "doctors": [...]
+}
+
+===========================================
+TROUBLESHOOTING
+===========================================
+
+Problem: "Prisma Client could not be generated"
+Solution: 
+  - Delete node_modules and package-lock.json
+  - Run: npm install
+  - Run: npx prisma generate
+
+Problem: "Migration failed"
+Solution:
+  - Check database connection in .env file
+  - Ensure PostgreSQL is running
+  - Check database user has proper permissions
+
+Problem: "Column already exists"
+Solution:
+  - The migration was already applied
+  - Run: npx prisma migrate status
+  - If needed, run: npx prisma migrate resolve --applied "migration_name"
+
+Problem: "Cannot connect to database"
+Solution:
+  - Verify DATABASE_URL in .env file
+  - Check PostgreSQL service is running
+  - Test connection: npx prisma db pull
+
+===========================================
+ROLLBACK (IF NEEDED)
+===========================================
+
+If you need to rollback the migration:
+
+1. Restore from backup:
+   psql -U your_username -d your_database_name < backup_YYYYMMDD.sql
+
+2. Or manually remove the column:
+   ALTER TABLE "Doctor" DROP COLUMN "unavailableDates";
+
+3. Delete the migration file:
+   rm -rf prisma/migrations/XXXXXX_add_unavailable_dates_field
+
+===========================================
+VERIFICATION CHECKLIST
+===========================================
+
+✓ Prisma client generated successfully
+✓ Migration applied without errors
+✓ Backend server starts without errors
+✓ Public API endpoints respond correctly
+✓ Doctor model has unavailableDates field
+✓ Frontend can save and load unavailable dates
+
+===========================================

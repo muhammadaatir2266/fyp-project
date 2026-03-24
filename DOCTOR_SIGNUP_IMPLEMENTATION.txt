@@ -1,0 +1,130 @@
+# Doctor Signup with Verification Implementation
+
+## Summary
+Doctor signup now requires document upload and admin approval before account activation. Added clinicLocation field to doctor profile.
+
+## Changes Made
+
+### 1. Database Schema Updates (All 3 backends)
+- Added `DoctorVerificationStatus` enum (PENDING, APPROVED, REJECTED)
+- Added `clinicLocation` field to Doctor model (String, optional)
+- Added verification fields to Doctor model:
+  - `licenseNumber`: String (optional)
+  - `verificationDocument`: String (URL to uploaded file)
+  - `verificationStatus`: DoctorVerificationStatus (default: PENDING)
+  - `verificationNotes`: String (admin notes)
+  - `verifiedAt`: DateTime
+  - `verifiedBy`: String (admin ID)
+- Changed `isActive` default to `false` (was `true`)
+- Updated schema in:
+  - fyp-admin/backend/prisma/schema.prisma
+  - fyp-doctor/backend/prisma/schema.prisma
+  - fyp-patient/backend/prisma/schema.prisma
+
+### 2. Frontend (fyp-doctor)
+- Created new signup page with:
+  - File upload for verification documents (PDF, JPG, PNG, max 5MB)
+  - Form fields: firstName, lastName, email, phone, licenseNumber, specialization, clinicLocation, address, city, password
+  - Success screen explaining approval process
+  - Validation for file type and size
+- Location: `fyp-doctor/frontend/src/app/signup/page.tsx`
+
+### 3. Backend (fyp-doctor)
+- Updated auth controller with:
+  - Multer configuration for file uploads
+  - File validation (type, size)
+  - Creates doctor with PENDING status
+  - Stores uploaded document in `/uploads/verification-documents/`
+  - Login checks for verification status
+  - Handles clinicLocation field
+- Added multer dependency to package.json
+- Updated server to serve uploaded files
+- Location: `fyp-doctor/backend/src/controllers/auth.controller.js`
+
+## Next Steps (You Need to Do)
+
+### 1. Install Dependencies
+```bash
+cd fyp-doctor/backend
+npm install
+```
+
+### 2. Run Migration (Admin Backend Only)
+```bash
+cd fyp-admin/backend
+npx prisma migrate dev --name add_doctor_verification_and_clinic_location
+```
+
+### 3. Generate Prisma Client (All Backends)
+```bash
+# Admin
+cd fyp-admin/backend
+npx prisma generate
+
+# Doctor
+cd fyp-doctor/backend
+npx prisma generate
+
+# Patient
+cd fyp-patient/backend
+npx prisma generate
+```
+
+### 4. Create Uploads Directory
+```bash
+cd fyp-doctor/backend
+mkdir -p uploads/verification-documents
+```
+
+### 5. Admin Panel Features Needed
+You'll need to create admin panel pages for:
+- View pending doctor applications
+- View uploaded verification documents
+- Approve/Reject applications
+- Add verification notes
+- View all doctors with their verification status
+
+## How It Works
+
+1. **Doctor Signup**:
+   - Doctor fills form including clinicLocation and uploads verification document
+   - Account created with `verificationStatus: PENDING` and `isActive: false`
+   - Success message shown explaining approval process
+
+2. **Admin Review** (To be implemented):
+   - Admin views pending applications in admin panel
+   - Admin downloads/views verification document
+   - Admin approves or rejects with notes
+   - On approval: `verificationStatus: APPROVED`, `isActive: true`, `isVerified: true`
+   - On rejection: `verificationStatus: REJECTED`
+
+3. **Doctor Login**:
+   - If PENDING: "Your account is pending admin approval"
+   - If REJECTED: "Your account application was rejected"
+   - If APPROVED but inactive: "Your account is inactive"
+   - If APPROVED and active: Login successful
+
+## File Structure
+```
+fyp-doctor/backend/
+├── uploads/
+│   └── verification-documents/
+│       └── doc-{timestamp}-{random}.{ext}
+├── src/
+│   └── controllers/
+│       └── auth.controller.js (updated with multer and clinicLocation)
+└── package.json (added multer)
+```
+
+## Environment Variables
+No new environment variables needed. Uses existing DATABASE_URL, JWT_SECRET, etc.
+
+## Testing
+1. Go to http://localhost:3001/signup
+2. Fill out the form including clinic location
+3. Upload a document (PDF, JPG, or PNG)
+4. Submit application
+5. Check database - doctor should have PENDING status
+6. Try to login - should get "pending approval" message
+7. Admin needs to approve in admin panel (to be built)
+8. After approval, doctor can login successfully

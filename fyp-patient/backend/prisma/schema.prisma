@@ -1,0 +1,210 @@
+// Prisma Schema for Patient App Backend
+// Database: PostgreSQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== ENUMS ====================
+
+enum UserRole {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+}
+
+enum BookingSource {
+  PATIENT_APP
+  CALLING_AGENT
+  ADMIN_PANEL
+  WALK_IN
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum DoctorVerificationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ==================== MODELS ====================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  role          UserRole  @default(ADMIN)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  admin         Admin?
+  patient       Patient?
+  doctor        Doctor?
+}
+
+model Admin {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  firstName       String
+  lastName        String
+  phone           String?
+  
+  isSuperAdmin    Boolean   @default(false)
+  isActive        Boolean   @default(true)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  apiTokens       ApiToken[]
+}
+
+model ApiToken {
+  id              String    @id @default(uuid())
+  name            String
+  token           String    @unique
+  adminId         String
+  admin           Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  
+  isActive        Boolean   @default(true)
+  expiresAt       DateTime?
+  lastUsedAt      DateTime?
+  usageCount      Int       @default(0)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  apiLogs         ApiLog[]
+}
+
+model ApiLog {
+  id              String    @id @default(uuid())
+  tokenId         String
+  token           ApiToken  @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+  
+  endpoint        String
+  method          String
+  statusCode      Int
+  requestBody     String?
+  responseBody    String?
+  ipAddress       String?
+  userAgent       String?
+  
+  createdAt       DateTime  @default(now())
+}
+
+model Patient {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  firstName       String
+  lastName        String
+  dateOfBirth     DateTime?
+  gender          Gender?
+  phone           String?
+  address         String?
+  city            String?
+  emergencyContact String?
+  medicalHistory  String?
+  allergies       String?
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  appointments    Appointment[]
+}
+
+model Doctor {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  firstName       String
+  lastName        String
+  specialtyId     String
+  specialty       Specialty @relation(fields: [specialtyId], references: [id])
+  
+  phone           String
+  address         String
+  city            String
+  clinicLocation  String?
+  latitude        Float?
+  longitude       Float?
+  
+  qualifications  String?
+  experience      Int       @default(0)
+  rating          Float     @default(0)
+  reviewCount     Int       @default(0)
+  consultationFee Float?
+  
+  availableFrom   String?
+  availableTo     String?
+  workingDays     String[]
+  unavailableDates String[]  @default([])
+  
+  // Verification fields
+  licenseNumber   String?
+  verificationDocument String?  // URL to uploaded document
+  verificationStatus DoctorVerificationStatus @default(PENDING)
+  verificationNotes String?
+  verifiedAt      DateTime?
+  verifiedBy      String?  // Admin ID who verified
+  
+  isActive        Boolean   @default(false)  // Changed to false by default
+  isVerified      Boolean   @default(false)
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  appointments    Appointment[]
+}
+
+model Specialty {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  iconName    String?
+  
+  doctors     Doctor[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Appointment {
+  id          String            @id @default(uuid())
+  patientId   String
+  patient     Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId    String
+  doctor      Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  scheduledAt DateTime
+  duration    Int               @default(30)
+  status      AppointmentStatus @default(PENDING)
+  source      BookingSource     @default(PATIENT_APP)
+  reason      String?
+  notes       String?
+  
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+}

@@ -1,0 +1,108 @@
+=== API DOCUMENTATION SEPARATION COMPLETE ===
+
+Date: March 24, 2026
+Task: Separate ML API Docs from Doctor API Docs
+
+CHANGES MADE:
+
+1. CREATED NEW ML API DOCS PAGE
+   Location: fyp-admin/frontend/src/app/(dashboard)/ml-api-docs/page.tsx
+   
+   Features:
+   - Purple/Pink gradient theme (distinct from Doctor API's teal/green)
+   - Brain icon for ML branding
+   - 4 ML endpoints documented:
+     * POST /api/v1/ml/predict
+     * GET /api/v1/ml/symptoms
+     * GET /api/v1/ml/diseases
+     * GET /api/v1/ml/health
+   - Model information section (CatBoost Classifier)
+   - Setup guide with Python installation instructions
+   - Complete request/response examples
+   - Error codes specific to ML service
+   - Copy-to-clipboard functionality
+
+2. UPDATED DOCTOR API DOCS PAGE
+   Location: fyp-admin/frontend/src/app/(dashboard)/api-docs/page.tsx
+   
+   Changes:
+   - Renamed from "API Documentation" to "Doctor API Documentation"
+   - Updated subtitle to "Calling Agent & Doctor Booking API"
+   - Removed all ML endpoints (4 endpoints removed)
+   - Kept only Doctor/Calling Agent endpoints:
+     * GET /api/v1/doctors
+     * GET /api/v1/doctors/:id/availability
+     * GET /api/v1/doctors/:id/slots
+     * POST /api/v1/doctors/:id/appointments
+   - Maintained teal/green gradient theme
+
+3. UPDATED SIDEBAR NAVIGATION
+   Location: fyp-admin/frontend/src/app/(dashboard)/layout.tsx
+   
+   Changes:
+   - Renamed "API Docs" to "Doctor API Docs"
+   - Added new "ML API Docs" menu item with Brain icon
+   - Both docs pages now accessible from sidebar
+   - Proper icon imports added
+
+NAVIGATION STRUCTURE:
+
+Dashboard
+├── Dashboard
+├── Doctors
+├── Appointments
+├── API Access (shared by both APIs)
+├── API Logs (shared by both APIs)
+├── Doctor API Docs (NEW NAME)
+├── ML API Docs (NEW PAGE)
+└── Settings
+
+VISUAL DISTINCTION:
+
+Doctor API Docs:
+- Icon: Book (📖)
+- Colors: Teal/Green gradient (#0d9488, #10b981)
+- Focus: Doctor booking, appointments, availability
+
+ML API Docs:
+- Icon: Brain (🧠)
+- Colors: Purple/Pink gradient (#9333ea, #db2777)
+- Focus: Disease prediction, symptoms, ML model
+
+BENEFITS:
+
+✅ Clear separation of concerns
+✅ Easier to navigate and find relevant docs
+✅ Visual distinction between API types
+✅ Better organization for developers
+✅ Dedicated setup instructions for ML service
+✅ Model-specific information highlighted
+
+USER EXPERIENCE:
+
+1. Developers using Doctor API → Go to "Doctor API Docs"
+2. Developers using ML Model → Go to "ML API Docs"
+3. Both use same API token from "API Access"
+4. Both logged in "API Logs"
+5. Clear visual cues (colors, icons) for each API type
+
+TESTING:
+
+To verify the changes:
+1. Start frontend: cd fyp-admin/frontend && npm run dev
+2. Login to admin panel: http://localhost:3002
+3. Check sidebar navigation shows both doc pages
+4. Visit Doctor API Docs - should show only 4 doctor endpoints
+5. Visit ML API Docs - should show only 4 ML endpoints
+6. Verify color schemes are different
+7. Test copy-to-clipboard on both pages
+
+FILES MODIFIED:
+- fyp-admin/frontend/src/app/(dashboard)/api-docs/page.tsx
+- fyp-admin/frontend/src/app/(dashboard)/layout.tsx
+
+FILES CREATED:
+- fyp-admin/frontend/src/app/(dashboard)/ml-api-docs/page.tsx
+- fyp-admin/API_DOCS_SEPARATION_COMPLETE.txt
+
+=== END OF SUMMARY ===

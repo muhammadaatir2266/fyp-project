@@ -1,0 +1,266 @@
+===========================================
+ARCHITECTURE CHANGE SUMMARY
+Moving Calling Agent API to Admin System
+===========================================
+
+CURRENT SITUATION (BEFORE)
+===========================================
+
+fyp-doctor backend has:
+✗ Public API endpoints (no authentication)
+✗ Anyone can access doctor availability
+✗ Anyone can book appointments
+✗ No API usage tracking
+✗ No centralized management
+
+Location: fyp-doctor/backend/src/controllers/public.controller.js
+Endpoints: /api/public/doctors/*
+
+PROBLEMS WITH CURRENT APPROACH
+===========================================
+
+1. Security Risk
+   - No authentication required
+   - Open to abuse and spam
+   - No rate limiting
+
+2. No Monitoring
+   - Can't track who's using the API
+   - No usage statistics
+   - Can't revoke access
+
+3. Poor Architecture
+   - Doctor app shouldn't expose public APIs
+   - No centralized control
+   - Hard to manage multiple integrations
+
+NEW ARCHITECTURE (AFTER)
+===========================================
+
+fyp-admin backend will have:
+✓ API token authentication required
+✓ Admin generates tokens for external systems
+✓ All API calls are logged
+✓ Centralized management and monitoring
+✓ Can revoke tokens anytime
+
+Location: fyp-admin/backend/src/controllers/callingAgent.controller.ts
+Endpoints: /api/v1/doctors/* (with token auth)
+
+BENEFITS OF NEW APPROACH
+===========================================
+
+1. Security
+   ✓ API token required for all calls
+   ✓ Admin controls who has access
+   ✓ Can revoke tokens instantly
+   ✓ Rate limiting per token
+
+2. Monitoring
+   ✓ Track every API call
+   ✓ See which token made which call
+   ✓ Usage statistics per token
+   ✓ Identify and block abuse
+
+3. Centralized Management
+   ✓ One place to manage all integrations
+   ✓ Admin dashboard shows API usage
+   ✓ Easy to add new external systems
+   ✓ Better architecture
+
+HOW IT WORKS
+===========================================
+
+STEP 1: Admin Generates Token
+------------------------------
+1. Admin logs into fyp-admin dashboard
+2. Goes to "API Access" page
+3. Clicks "Generate New Token"
+4. Enters token name (e.g., "Retell AI Calling Agent")
+5. System generates secure token
+6. Admin copies token
+
+STEP 2: External System Uses Token
+-----------------------------------
+1. Calling agent includes token in header:
+   Authorization: Bearer abc123xyz...
+
+2. Makes API call:
+   GET /api/v1/doctors/123/availability?date=2024-03-15&time=14:30
+
+3. Middleware validates token
+4. If valid, processes request
+5. Logs the API call
+
+STEP 3: Admin Monitors Usage
+-----------------------------
+1. Admin views "API Logs" page
+2. Sees all API calls with:
+   - Which token was used
+   - Endpoint called
+   - Timestamp
+   - Response status
+3. Can revoke token if needed
+
+API ENDPOINTS COMPARISON
+===========================================
+
+OLD (fyp-doctor):
+-----------------
+GET  /api/public/doctors
+GET  /api/public/doctors/:id/availability
+GET  /api/public/doctors/:id/slots
+POST /api/public/doctors/:id/appointments
+
+❌ No authentication
+❌ No logging
+❌ No management
+
+NEW (fyp-admin):
+----------------
+GET  /api/v1/doctors
+GET  /api/v1/doctors/:id/availability
+GET  /api/v1/doctors/:id/slots
+POST /api/v1/doctors/:id/appointments
+
+✅ Requires API token
+✅ All calls logged
+✅ Admin can manage tokens
+✅ Usage statistics tracked
+
+MIGRATION STEPS
+===========================================
+
+1. Build fyp-admin application
+2. Move calling agent endpoints to fyp-admin
+3. Add API token authentication
+4. Add logging system
+5. Build admin dashboard
+6. Remove public endpoints from fyp-doctor
+7. Update calling agent to use new endpoints with token
+
+CALLING AGENT INTEGRATION
+===========================================
+
+Before (No Auth):
+-----------------
+curl http://localhost:5000/api/public/doctors
+
+After (With Token):
+-------------------
+curl http://localhost:4000/api/v1/doctors \
+  -H "Authorization: Bearer YOUR_API_TOKEN"
+
+The calling agent just needs to:
+1. Get API token from admin
+2. Include token in Authorization header
+3. Use new endpoint URLs
+
+ADMIN DASHBOARD FEATURES
+===========================================
+
+1. API Access Management
+   - Generate tokens
+   - View all tokens
+   - Revoke tokens
+   - See usage per token
+
+2. API Logs
+   - View all API calls
+   - Filter by token/endpoint/date
+   - See request/response details
+   - Export logs
+
+3. System Monitoring
+   - Total API calls today
+   - Most used endpoints
+   - Active tokens
+   - Failed requests
+
+4. Doctor Management
+   - View all doctors
+   - Create/edit doctors
+   - Manage availability
+   - View appointments
+
+DATABASE CHANGES
+===========================================
+
+New Tables:
+-----------
+1. Admin
+   - Admin user accounts
+
+2. ApiToken
+   - id, name, token, adminId
+   - isActive, expiresAt
+   - createdAt, lastUsedAt, usageCount
+
+3. ApiLog
+   - id, tokenId, endpoint, method
+   - statusCode, requestBody, responseBody
+   - ipAddress, timestamp
+
+SECURITY IMPROVEMENTS
+===========================================
+
+1. Authentication
+   ✓ API tokens required
+   ✓ Tokens can expire
+   ✓ Tokens can be revoked
+
+2. Authorization
+   ✓ Only admin can generate tokens
+   ✓ Each token tracked separately
+   ✓ Can limit token permissions
+
+3. Monitoring
+   ✓ All API calls logged
+   ✓ Suspicious activity detected
+   ✓ Rate limiting per token
+
+4. Audit Trail
+   ✓ Who generated which token
+   ✓ When token was used
+   ✓ What endpoints were called
+
+IMPLEMENTATION TIMELINE
+===========================================
+
+Week 1: Setup
+- Create fyp-admin structure
+- Setup backend with Express + Prisma
+- Setup frontend with Next.js
+
+Week 2: Backend
+- Implement admin authentication
+- Create API token system
+- Move calling agent endpoints
+- Add logging system
+
+Week 3: Frontend
+- Build admin dashboard
+- Create doctor management pages
+- Build API access management
+- Create API logs viewer
+
+Week 4: Testing & Migration
+- Test all features
+- Update calling agent integration
+- Remove old endpoints from fyp-doctor
+- Deploy fyp-admin
+
+CONCLUSION
+===========================================
+
+Moving the calling agent API to fyp-admin provides:
+
+✅ Better security with token authentication
+✅ Centralized management of all integrations
+✅ Complete monitoring and logging
+✅ Professional architecture
+✅ Scalable for future integrations
+
+This is the correct approach for a production system!
+
+===========================================

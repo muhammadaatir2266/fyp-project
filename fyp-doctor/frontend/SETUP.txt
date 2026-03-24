@@ -1,0 +1,105 @@
+DOCTOR DASHBOARD FRONTEND - SETUP INSTRUCTIONS
+===============================================
+
+PREREQUISITES:
+- Node.js (v18 or higher)
+- Backend API running on http://localhost:5000
+
+SETUP STEPS:
+
+1. Install Dependencies:
+   cd frontend
+   npm install
+
+2. Configure Environment:
+   - The .env.local file is already configured
+   - Default API URL: http://localhost:5000/api
+   - If your backend runs on a different port, update NEXT_PUBLIC_API_URL
+
+3. Run Development Server:
+   npm run dev
+   
+   The app will run on http://localhost:3001
+
+4. Build for Production:
+   npm run build
+   npm start
+
+DEFAULT LOGIN (after backend seeding):
+======================================
+Email: doctor@example.com
+Password: doctor123
+
+FEATURES INCLUDED:
+==================
+- Dashboard with stats and overview
+- Appointments management
+- Patient records with AI predictions
+- Call logs from voice agent
+- Availability management
+- Profile management
+- Settings (password, notifications)
+
+TECH STACK:
+===========
+- Next.js 16
+- TypeScript
+- Tailwind CSS v4
+- Shadcn UI
+- Axios for API calls
+- Lucide React icons
+
+FOLDER STRUCTURE:
+=================
+frontend/
+├── src/
+│   ├── app/
+│   │   ├── (dashboard)/
+│   │   │   ├── dashboard/
+│   │   │   ├── appointments/
+│   │   │   ├── patients/
+│   │   │   ├── calls/
+│   │   │   ├── availability/
+│   │   │   ├── profile/
+│   │   │   └── settings/
+│   │   ├── login/
+│   │   ├── globals.css
+│   │   └── layout.tsx
+│   ├── components/
+│   │   ├── dashboard/
+│   │   └── ui/
+│   ├── lib/
+│   │   ├── api.ts
+│   │   ├── auth.ts
+│   │   └── utils.ts
+│   └── types/
+│       └── index.ts
+├── package.json
+├── .env.local
+└── tsconfig.json
+
+TROUBLESHOOTING:
+================
+
+❌ Cannot connect to backend:
+   - Ensure backend is running on port 5000
+   - Check NEXT_PUBLIC_API_URL in .env.local
+
+❌ Login fails:
+   - Verify backend database is seeded
+   - Check backend logs for errors
+
+❌ Port 3001 already in use:
+   - Change port in package.json dev script
+   - Or stop the process using port 3001
+
+DEVELOPMENT COMMANDS:
+=====================
+npm run dev      - Start development server
+npm run build    - Build for production
+npm start        - Start production server
+npm run lint     - Run ESLint
+
+ENVIRONMENT VARIABLES:
+======================
+NEXT_PUBLIC_API_URL - Backend API URL (default: http://localhost:5000/api)

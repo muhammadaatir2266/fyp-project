@@ -1,0 +1,161 @@
+===========================================
+FYP-ADMIN SETUP INSTRUCTIONS
+Complete Setup Guide
+===========================================
+
+WHAT HAS BEEN CREATED
+===========================================
+
+Backend Structure:
+✓ package.json
+✓ .env.example
+✓ .gitignore
+✓ prisma/schema.prisma
+✓ prisma/seed.js
+✓ src/config/database.js
+✓ src/middleware/auth.js
+✓ src/middleware/apiToken.js
+✓ src/middleware/apiLogger.js
+✓ src/controllers/auth.controller.js
+✓ src/controllers/dashboard.controller.js
+✓ src/controllers/doctor.controller.js
+✓ src/controllers/appointment.controller.js
+✓ src/controllers/apiToken.controller.js
+✓ src/controllers/callingAgent.controller.js
+✓ src/routes/auth.routes.js
+✓ src/routes/admin.routes.js
+✓ src/routes/api.routes.js
+✓ src/index.js
+
+Frontend Structure:
+✓ package.json
+✓ .env.example
+✓ .env.local
+✓ .gitignore
+✓ next.config.ts
+✓ tsconfig.json
+✓ tailwind.config.ts
+✓ postcss.config.mjs
+✓ components.json
+✓ src/lib/utils.ts
+✓ src/lib/auth.ts
+✓ src/lib/api.ts
+✓ src/types/index.ts
+✓ src/app/globals.css
+✓ src/app/layout.tsx
+✓ src/app/page.tsx
+✓ src/app/login/page.tsx
+✓ src/app/(dashboard)/layout.tsx
+✓ src/app/(dashboard)/dashboard/page.tsx
+✓ src/components/ui/button.tsx
+✓ src/components/ui/input.tsx
+✓ src/components/ui/card.tsx
+✓ src/components/ui/badge.tsx
+
+SETUP STEPS
+===========================================
+
+BACKEND SETUP:
+--------------
+
+1. Navigate to backend directory:
+   cd fyp-admin/backend
+
+2. Install dependencies:
+   npm install
+
+3. Create .env file:
+   cp .env.example .env
+
+4. Edit .env with your database credentials:
+   DATABASE_URL="postgresql://user:password@localhost:5432/fyp_admin"
+   JWT_SECRET="your-secret-key-here"
+   PORT=4000
+   NODE_ENV=development
+   FRONTEND_URL=http://localhost:3002
+
+5. Generate Prisma Client:
+   npx prisma generate
+
+6. Run database migrations:
+   npx prisma migrate dev --name init
+
+7. Seed the database with admin user:
+   node prisma/seed.js
+
+8. Start the backend server:
+   npm run dev
+
+Backend will run on: http://localhost:4000
+
+FRONTEND SETUP:
+---------------
+
+1. Navigate to frontend directory:
+   cd fyp-admin/frontend
+
+2. Install dependencies:
+   npm install
+
+3. Environment is already configured in .env.local
+
+4. Start the development server:
+   npm run dev
+
+Frontend will run on: http://localhost:3002
+
+DEFAULT CREDENTIALS:
+--------------------
+Email: admin@example.com
+Password: admin123
+
+API ENDPOINTS:
+--------------
+
+Admin Endpoints (JWT Auth):
+- POST   /api/auth/login
+- GET    /api/admin/dashboard/stats
+- GET    /api/admin/doctors
+- POST   /api/admin/doctors
+- PUT    /api/admin/doctors/:id
+- DELETE /api/admin/doctors/:id
+- GET    /api/admin/appointments
+- PUT    /api/admin/appointments/:id
+- DELETE /api/admin/appointments/:id
+- GET    /api/admin/api-tokens
+- POST   /api/admin/api-tokens
+- DELETE /api/admin/api-tokens/:id
+- GET    /api/admin/api-logs
+
+Calling Agent Endpoints (API Token Auth):
+- GET    /api/v1/doctors
+- GET    /api/v1/doctors/:doctorId/availability
+- GET    /api/v1/doctors/:doctorId/slots
+- POST   /api/v1/doctors/:doctorId/appointments
+
+NEXT STEPS:
+-----------
+
+1. Complete remaining dashboard pages:
+   - Doctors management page
+   - Appointments monitoring page
+   - API access management page
+   - API logs viewer page
+   - Settings page
+
+2. Remove public API endpoints from fyp-doctor backend
+
+3. Update calling agent to use new endpoints with API token
+
+4. Test all functionality
+
+PORTS:
+------
+- Backend: 4000
+- Frontend: 3002
+- Doctor Backend: 5000
+- Doctor Frontend: 3001
+- Patient Backend: 3000
+- Patient Frontend: 3000
+
+===========================================

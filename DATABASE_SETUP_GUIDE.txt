@@ -1,0 +1,84 @@
+===========================================
+DATABASE SETUP GUIDE - Quick Reference
+===========================================
+
+ARCHITECTURE
+===========================================
+
+One PostgreSQL database → All three backends connect to it
+Each backend has its own prisma/ folder (same schema)
+
+SETUP STEPS
+===========================================
+
+1. Create Database:
+   CREATE DATABASE fyp_healthcare_db;
+
+2. Update .env in ALL backends (same DATABASE_URL):
+   DATABASE_URL="postgresql://postgres:password@localhost:5432/fyp_healthcare_db"
+   JWT_SECRET="your-secret"
+   PORT=4000  (5000 for doctor, 3000 for patient)
+
+3. Install Dependencies:
+   cd fyp-admin/backend && npm install
+   cd fyp-doctor/backend && npm install
+   cd fyp-patient/backend && npm install
+
+4. Run Migration (Admin ONLY):
+   cd fyp-admin/backend
+   npx prisma generate
+   npx prisma migrate dev --name init
+   node prisma/seed.js
+
+5. Generate Client (Other Backends):
+   cd fyp-doctor/backend && npx prisma generate
+   cd fyp-patient/backend && npx prisma generate
+
+6. Start All Backends:
+   cd fyp-admin/backend && npm run dev    (Terminal 1)
+   cd fyp-doctor/backend && npm run dev   (Terminal 2)
+   cd fyp-patient/backend && npm run dev  (Terminal 3)
+
+LOGIN CREDENTIALS
+===========================================
+
+Admin:   admin@example.com / admin123   (http://localhost:3002)
+Doctor:  doctor@example.com / doctor123 (http://localhost:3001)
+Patient: patient@example.com / patient123 (http://localhost:3000)
+
+UPDATING SCHEMA
+===========================================
+
+1. Update prisma/schema.prisma in root
+2. Copy to all backends:
+   Copy-Item prisma\schema.prisma fyp-admin\backend\prisma\
+   Copy-Item prisma\schema.prisma fyp-doctor\backend\prisma\
+   Copy-Item prisma\schema.prisma fyp-patient\backend\prisma\
+
+3. Run migration (admin only):
+   cd fyp-admin/backend
+   npx prisma migrate dev --name your_change
+
+4. Generate client (all backends):
+   npx prisma generate
+
+IMPORTANT RULES
+===========================================
+
+✅ Same DATABASE_URL in all backends
+✅ Run migrations ONLY from admin
+✅ Keep schemas synchronized
+✅ Generate Prisma Client after changes
+
+❌ Don't run migrations from multiple backends
+❌ Don't use different databases
+
+TROUBLESHOOTING
+===========================================
+
+"Database does not exist" → CREATE DATABASE fyp_healthcare_db;
+"Connection refused" → Check PostgreSQL running
+"Prisma Client not found" → npx prisma generate
+"Schema out of sync" → Copy schema from root to backends
+
+===========================================

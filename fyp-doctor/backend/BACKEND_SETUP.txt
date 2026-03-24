@@ -1,0 +1,136 @@
+DOCTOR DASHBOARD BACKEND - SETUP INSTRUCTIONS
+==============================================
+
+PREREQUISITES:
+- Node.js (v18 or higher)
+- PostgreSQL database running
+- npm or yarn package manager
+
+SETUP STEPS:
+
+1. Install Dependencies:
+   cd backend
+   npm install
+
+2. Configure Environment:
+   - Copy .env.example to .env
+   - Update DATABASE_URL with your PostgreSQL credentials:
+     DATABASE_URL="postgresql://username:password@localhost:5432/medical_assistant?schema=public"
+   - Update JWT_SECRET (keep it secure!)
+   - Update FRONTEND_URL if needed (default: http://localhost:3001)
+
+3. Setup Database:
+   # Generate Prisma Client
+   npx prisma generate
+
+   # Run migrations to create tables
+   npx prisma migrate dev --name init
+
+   # Seed the database with sample data
+   npx prisma db seed
+
+4. Start the Server:
+   npm run dev
+   
+   The API will run on http://localhost:5000
+
+5. Test the API:
+   Visit: http://localhost:5000/api/health
+   Should return: {"status":"OK","message":"Doctor Dashboard API is running"}
+
+DEFAULT LOGIN CREDENTIALS (after seeding):
+==========================================
+Email: doctor@example.com
+Password: doctor123
+
+SAMPLE DATA INCLUDED:
+- 1 Doctor (Dr. John Smith - Cardiologist)
+- 2 Patients (Alice Johnson, Bob Williams)
+- 3 Appointments (today and upcoming)
+- Chat history with AI predictions
+- Call logs
+- Symptoms and diseases
+
+API ENDPOINTS:
+==============
+
+Authentication:
+- POST /api/auth/login
+- GET /api/auth/me
+
+Dashboard:
+- GET /api/doctor/dashboard/stats
+- GET /api/doctor/dashboard/appointments/today
+- GET /api/doctor/dashboard/calls/recent
+
+Appointments:
+- GET /api/doctor/appointments
+- GET /api/doctor/appointments/:id
+- PUT /api/doctor/appointments/:id
+
+Patients:
+- GET /api/doctor/patients
+- GET /api/doctor/patients/:id
+- GET /api/doctor/patients/:id/symptoms
+- GET /api/doctor/patients/:id/predictions
+- GET /api/doctor/patients/:id/chat-history
+- GET /api/doctor/patients/:id/appointments
+
+Calls:
+- GET /api/doctor/calls
+- GET /api/doctor/calls/:id
+
+Availability:
+- GET /api/doctor/availability
+- PUT /api/doctor/availability
+
+Profile:
+- GET /api/doctor/profile
+- PUT /api/doctor/profile
+
+Settings:
+- PUT /api/doctor/settings/password
+- PUT /api/doctor/settings/notifications
+
+TROUBLESHOOTING:
+================
+
+1. Database Connection Error:
+   - Verify PostgreSQL is running
+   - Check DATABASE_URL in .env
+   - Ensure database exists
+
+2. Prisma Client Error:
+   - Run: npx prisma generate
+   - Restart the server
+
+3. Port Already in Use:
+   - Change PORT in .env file
+   - Update NEXT_PUBLIC_API_URL in frontend .env.local
+
+4. JWT Token Error:
+   - Ensure JWT_SECRET is set in .env
+   - Check token expiration settings
+
+DEVELOPMENT COMMANDS:
+=====================
+npm run dev      - Start development server with nodemon
+npm start        - Start production server
+npx prisma studio - Open Prisma Studio (database GUI)
+npx prisma migrate dev - Create new migration
+npx prisma db seed - Reseed database
+
+PRODUCTION DEPLOYMENT:
+======================
+1. Set NODE_ENV=production in .env
+2. Update DATABASE_URL to production database
+3. Run migrations: npx prisma migrate deploy
+4. Start server: npm start
+
+SECURITY NOTES:
+===============
+- Change JWT_SECRET in production
+- Use strong passwords
+- Enable HTTPS in production
+- Set proper CORS origins
+- Keep dependencies updated

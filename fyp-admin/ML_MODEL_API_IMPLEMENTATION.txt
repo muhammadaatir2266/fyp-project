@@ -1,0 +1,186 @@
+=== ML MODEL API IMPLEMENTATION SUMMARY ===
+
+Date: March 24, 2026
+Feature: Disease Prediction ML Model API Integration
+
+OVERVIEW:
+Integrated a CatBoost-based disease prediction ML model into the Trimed Al admin backend.
+The ML service runs as a separate Python FastAPI microservice and is accessed through
+the Node.js backend with API token authentication.
+
+ARCHITECTURE:
+┌─────────────────┐      ┌──────────────────┐      ┌─────────────────┐
+│  External API   │─────▶│  Node.js Backend │─────▶│  Python ML      │
+│  Client         │      │  (Port 4000)     │      │  Service        │
+│  (with token)   │◀─────│  - Auth          │◀─────│  (Port 5001)    │
+└─────────────────┘      │  - Logging       │      └─────────────────┘
+                         │  - Proxy         │
+                         └──────────────────┘
+
+IMPLEMENTATION DETAILS:
+
+1. ML SERVICE (Python FastAPI)
+   Location: fyp-admin/backend/ml-service/
+   
+   Files Created:
+   - app.py                    - Main FastAPI application
+   - model_loader.py           - Loads CatBoost model and encoder
+   - predictor.py              - Handles prediction logic
+   - schemas.py                - Pydantic request/response models
+   - requirements.txt          - Python dependencies
+   - models/catboost_disease_model.cbm  - Trained model
+   - models/label_encoder.pkl  - Disease label encoder
+   - README.md                 - Setup instructions
+
+   Endpoints:
+   - POST /predict             - Predict disease from symptoms
+   - GET /symptoms             - Get all available symptoms
+   - GET /diseases             - Get all possible diseases
+   - GET /health               - Health check
+
+   Port: 5001 (localhost only)
+
+2. NODE.JS BACKEND INTEGRATION
+   Location: fyp-admin/backend/src/
+   
+   Files Created/Modified:
+   - controllers/mlModel.controller.js  - Proxy controller for ML service
+   - routes/api.routes.js               - Added ML routes (MODIFIED)
+   - package.json                       - Added axios dependency (MODIFIED)
+   - .env                               - Added ML_SERVICE_URL (MODIFIED)
+
+   New API Endpoints (with token auth):
+   - POST /api/v1/ml/predict
+   - GET /api/v1/ml/symptoms
+   - GET /api/v1/ml/diseases
+   - GET /api/v1/ml/health
+
+3. FRONTEND DOCUMENTATION
+   Location: fyp-admin/frontend/src/app/(dashboard)/api-docs/
+   
+   Files Modified:
+   - page.tsx                  - Added ML API documentation
+
+   Added 4 new endpoint documentations with:
+   - Request/response examples
+   - Parameter descriptions
+   - cURL examples
+   - Error handling
+
+4. AUTHENTICATION & SECURITY
+   - Same API token system used for Calling Agent API
+   - Token validation in Node.js backend
+   - ML service only accessible from localhost
+   - All requests logged via apiLogger middleware
+   - Usage tracked in database
+
+5. CLEANUP
+   - Deleted old fyp-admin/api/ folder
+   - Moved model files to ml-service/models/
+   - Organized Python code in ml-service directory
+
+FEATURES:
+
+✅ Disease prediction from symptoms
+✅ Top 3 predictions with confidence scores
+✅ List all available symptoms (for validation)
+✅ List all possible diseases
+✅ Health check endpoint
+✅ API token authentication
+✅ Request logging
+✅ Error handling
+✅ Service availability checking
+✅ Complete API documentation
+
+USAGE EXAMPLE:
+
+1. Start ML Service:
+   cd fyp-admin/backend/ml-service
+   python app.py
+
+2. Start Node.js Backend:
+   cd fyp-admin/backend
+   npm run dev
+
+3. Generate API Token:
+   - Login to admin panel (http://localhost:3002)
+   - Go to API Access page
+   - Generate new token
+
+4. Make Prediction:
+   curl -X POST "http://localhost:4000/api/v1/ml/predict" \
+     -H "Authorization: Bearer YOUR_TOKEN" \
+     -H "Content-Type: application/json" \
+     -d '{"symptoms": ["fever", "cough", "headache"]}'
+
+RESPONSE FORMAT:
+{
+  "success": true,
+  "data": {
+    "predicted_disease": "Flu",
+    "confidence": 0.87,
+    "top_3_predictions": [
+      {"disease": "Flu", "confidence": 0.87},
+      {"disease": "Common Cold", "confidence": 0.09},
+      {"disease": "COVID-19", "confidence": 0.04}
+    ]
+  }
+}
+
+DEPENDENCIES ADDED:
+
+Node.js:
+- axios@^1.6.2 (for HTTP requests to ML service)
+
+Python:
+- fastapi==0.104.1
+- uvicorn[standard]==0.24.0
+- pydantic==2.5.0
+- catboost==1.2.2
+- numpy==1.24.3
+- pandas==2.0.3
+- scikit-learn==1.3.2
+- python-multipart==0.0.6
+
+TESTING:
+
+To test the ML API:
+1. Ensure both services are running
+2. Generate API token from admin panel
+3. Use the API Docs page for endpoint details
+4. Test with curl or Postman
+5. Check API Logs page for request history
+
+ERROR HANDLING:
+
+- 503: ML service unavailable (Python service not running)
+- 400: Invalid symptoms or empty array
+- 401: Missing or invalid API token
+- 403: Token expired or revoked
+- 500: Internal server error
+
+MONITORING:
+
+- All ML API calls are logged in the database
+- View logs in API Logs page
+- Track usage per token in API Access page
+- Monitor ML service health via /api/v1/ml/health
+
+NEXT STEPS:
+
+1. Install Python dependencies: pip install -r requirements.txt
+2. Start ML service: python app.py
+3. Install Node.js dependencies: npm install (in backend folder)
+4. Test endpoints using API documentation
+5. Monitor usage in admin panel
+
+NOTES:
+
+- ML service must be running for predictions to work
+- Model files are loaded on startup (takes a few seconds)
+- Predictions are fast once model is loaded
+- Service runs on localhost only for security
+- Node.js backend handles all authentication
+- Same token works for both Calling Agent and ML APIs
+
+=== END OF IMPLEMENTATION SUMMARY ===

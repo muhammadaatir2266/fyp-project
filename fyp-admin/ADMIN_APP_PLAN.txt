@@ -1,0 +1,299 @@
+===========================================
+FYP-ADMIN APPLICATION PLAN
+Central Management Panel for Healthcare Platform
+===========================================
+
+PROJECT OVERVIEW
+===========================================
+The fyp-admin app is the central control panel for the entire healthcare platform.
+It manages doctors, appointments, API tokens, and the calling agent integration system.
+
+ARCHITECTURE DECISION
+===========================================
+✓ Calling Agent API endpoints moved from fyp-doctor to fyp-admin
+✓ API token authentication required for external access
+✓ Admin can generate/revoke API tokens
+✓ All API calls are logged for monitoring
+✓ Centralized management of the entire system
+
+TECH STACK
+===========================================
+Frontend:
+- Next.js 15+ with TypeScript
+- Tailwind CSS v4
+- Shadcn UI components
+- Framer Motion for animations
+
+Backend:
+- Express.js with TypeScript
+- PostgreSQL with Prisma ORM
+- JWT for admin authentication
+- API token system for external access
+
+FOLDER STRUCTURE
+===========================================
+fyp-admin/
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── (auth)/
+│   │   │   │   └── login/
+│   │   │   ├── (dashboard)/
+│   │   │   │   ├── dashboard/
+│   │   │   │   ├── doctors/
+│   │   │   │   ├── appointments/
+│   │   │   │   ├── api-access/
+│   │   │   │   ├── api-logs/
+│   │   │   │   └── settings/
+│   │   │   └── layout.tsx
+│   │   ├── components/
+│   │   │   ├── dashboard/
+│   │   │   └── ui/
+│   │   ├── lib/
+│   │   └── types/
+│   └── package.json
+├── backend/
+│   ├── src/
+│   │   ├── controllers/
+│   │   │   ├── admin.controller.ts
+│   │   │   ├── doctor.controller.ts
+│   │   │   ├── appointment.controller.ts
+│   │   │   ├── apiToken.controller.ts
+│   │   │   └── callingAgent.controller.ts
+│   │   ├── middleware/
+│   │   │   ├── auth.ts
+│   │   │   └── apiToken.ts
+│   │   ├── routes/
+│   │   │   ├── admin.routes.ts
+│   │   │   └── api.routes.ts (for calling agent)
+│   │   └── index.ts
+│   ├── prisma/
+│   │   └── schema.prisma
+│   └── package.json
+└── README.md
+
+DATABASE SCHEMA ADDITIONS
+===========================================
+
+New Models:
+-----------
+1. Admin
+   - id, userId, firstName, lastName, role, permissions
+
+2. ApiToken
+   - id, name, token, adminId, isActive, expiresAt
+   - createdAt, lastUsedAt, usageCount
+
+3. ApiLog
+   - id, tokenId, endpoint, method, statusCode
+   - requestBody, responseBody, ipAddress, timestamp
+
+CORE FEATURES
+===========================================
+
+1. ADMIN DASHBOARD
+   - Total doctors, patients, appointments
+   - Today's appointments
+   - API usage statistics
+   - Calling agent activity
+   - Recent API calls
+   - System health metrics
+
+2. DOCTOR MANAGEMENT
+   - List all doctors with filters
+   - Create new doctor account
+   - Edit doctor profile
+   - Activate/deactivate doctor
+   - View doctor schedule
+   - View doctor appointments
+   - Manage doctor availability
+
+3. APPOINTMENT MONITORING
+   - View all appointments
+   - Filter by doctor, date, status
+   - View booking source (patient/calling agent)
+   - Cancel appointments
+   - Export appointment data
+
+4. API ACCESS MANAGEMENT
+   - Generate API tokens
+   - View all tokens
+   - Revoke tokens
+   - Set token expiration
+   - View token usage statistics
+   - Copy token to clipboard
+
+5. API LOGS
+   - View all API calls
+   - Filter by token, endpoint, date
+   - View request/response details
+   - Monitor calling agent activity
+   - Export logs
+
+6. CALLING AGENT API (Token Protected)
+   - GET /api/v1/doctors
+   - GET /api/v1/doctors/:id/availability
+   - GET /api/v1/doctors/:id/slots
+   - POST /api/v1/doctors/:id/appointments
+
+API TOKEN AUTHENTICATION FLOW
+===========================================
+
+1. Admin generates API token in dashboard
+2. Token is stored in database with metadata
+3. External system (calling agent) includes token in header:
+   Authorization: Bearer <token>
+4. Middleware validates token before allowing access
+5. Each API call is logged with token ID
+6. Admin can view usage and revoke if needed
+
+ENDPOINTS STRUCTURE
+===========================================
+
+ADMIN ENDPOINTS (JWT Auth):
+---------------------------
+POST   /api/admin/auth/login
+GET    /api/admin/dashboard/stats
+GET    /api/admin/doctors
+POST   /api/admin/doctors
+PUT    /api/admin/doctors/:id
+DELETE /api/admin/doctors/:id
+GET    /api/admin/appointments
+PUT    /api/admin/appointments/:id
+POST   /api/admin/api-tokens
+GET    /api/admin/api-tokens
+DELETE /api/admin/api-tokens/:id
+GET    /api/admin/api-logs
+
+CALLING AGENT ENDPOINTS (API Token Auth):
+-----------------------------------------
+GET    /api/v1/doctors
+GET    /api/v1/doctors/:id/availability?date=X&time=Y
+GET    /api/v1/doctors/:id/slots?date=X
+POST   /api/v1/doctors/:id/appointments
+
+UI PAGES
+===========================================
+
+1. Login Page
+   - Admin authentication
+   - Email + password
+
+2. Dashboard
+   - System statistics cards
+   - Charts (appointments, API usage)
+   - Recent activity feed
+
+3. Doctors Page
+   - Data table with all doctors
+   - Search and filters
+   - Add/Edit doctor modal
+   - View doctor details
+
+4. Appointments Page
+   - Data table with all appointments
+   - Filters (doctor, date, status, source)
+   - View appointment details
+   - Cancel appointment
+
+5. API Access Page
+   - List of API tokens
+   - Generate new token button
+   - Token details (name, created, usage)
+   - Revoke token action
+   - Copy token to clipboard
+
+6. API Logs Page
+   - Data table with API calls
+   - Filters (token, endpoint, date)
+   - View request/response details
+   - Export logs
+
+7. Settings Page
+   - Admin profile
+   - Change password
+   - System settings
+
+SECURITY FEATURES
+===========================================
+
+1. Admin Authentication
+   - JWT-based authentication
+   - Secure password hashing
+   - Session management
+
+2. API Token Security
+   - Cryptographically secure tokens
+   - Token expiration
+   - Rate limiting
+   - IP whitelisting (optional)
+
+3. Audit Logging
+   - All API calls logged
+   - Admin actions logged
+   - Timestamp and IP tracking
+
+MIGRATION FROM FYP-DOCTOR
+===========================================
+
+Files to Move:
+--------------
+✓ backend/src/controllers/public.controller.js
+  → backend/src/controllers/callingAgent.controller.ts
+
+✓ backend/src/routes/public.routes.js
+  → backend/src/routes/api.routes.ts
+
+Changes Required:
+-----------------
+✓ Add API token middleware
+✓ Update endpoints to /api/v1/*
+✓ Add logging for each API call
+✓ Remove from fyp-doctor backend
+
+IMPLEMENTATION PHASES
+===========================================
+
+Phase 1: Backend Setup
+- Initialize Express + TypeScript
+- Setup Prisma with new models
+- Create admin authentication
+- Implement API token system
+
+Phase 2: Calling Agent API
+- Move endpoints from fyp-doctor
+- Add token authentication
+- Implement API logging
+- Test endpoints
+
+Phase 3: Frontend Setup
+- Initialize Next.js + TypeScript
+- Setup Shadcn UI
+- Create layout and navigation
+- Implement authentication
+
+Phase 4: Core Pages
+- Dashboard with statistics
+- Doctors management
+- Appointments monitoring
+- API access management
+- API logs viewer
+
+Phase 5: Testing & Deployment
+- Test all features
+- API documentation
+- Deployment guide
+
+NEXT STEPS
+===========================================
+
+1. Create fyp-admin folder structure
+2. Initialize backend with Express + Prisma
+3. Initialize frontend with Next.js
+4. Implement database schema
+5. Build authentication system
+6. Move calling agent API
+7. Build admin dashboard
+8. Test integration
+
+===========================================
