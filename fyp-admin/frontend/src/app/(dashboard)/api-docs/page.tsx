@@ -32,7 +32,8 @@ interface Endpoint {
   };
 }
 
-const endpoints: Endpoint[] = [
+  // Generate endpoints with dynamic base URL
+  const getEndpoints = (baseUrl: string): Endpoint[] => [
   {
     method: 'GET',
     path: '/api/v1/doctors',
@@ -43,7 +44,7 @@ const endpoints: Endpoint[] = [
     ],
     response: 'Array of doctor objects',
     example: {
-      request: `curl -X GET "https://api.example.com/api/v1/doctors" \\
+      request: `curl -X GET "${baseUrl}/api/v1/doctors" \\
   -H "Authorization: Bearer YOUR_API_TOKEN"`,
       response: `{
   "success": true,
@@ -78,7 +79,7 @@ const endpoints: Endpoint[] = [
     ],
     response: 'Availability status object',
     example: {
-      request: `curl -X GET "https://api.example.com/api/v1/doctors/uuid/availability?date=2024-03-15&time=14:30" \\
+      request: `curl -X GET "${baseUrl}/api/v1/doctors/uuid/availability?date=2024-03-15&time=14:30" \\
   -H "Authorization: Bearer YOUR_API_TOKEN"`,
       response: `{
   "success": true,
@@ -107,7 +108,7 @@ const endpoints: Endpoint[] = [
     ],
     response: 'Array of available time slots',
     example: {
-      request: `curl -X GET "https://api.example.com/api/v1/doctors/uuid/slots?date=2024-03-15" \\
+      request: `curl -X GET "${baseUrl}/api/v1/doctors/uuid/slots?date=2024-03-15" \\
   -H "Authorization: Bearer YOUR_API_TOKEN"`,
       response: `{
   "success": true,
@@ -140,7 +141,7 @@ const endpoints: Endpoint[] = [
     ],
     response: 'Created appointment object',
     example: {
-      request: `curl -X POST "https://api.example.com/api/v1/doctors/uuid/appointments" \\
+      request: `curl -X POST "${baseUrl}/api/v1/doctors/uuid/appointments" \\
   -H "Authorization: Bearer YOUR_API_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -179,6 +180,7 @@ export default function ApiDocsPage() {
   const [expandedEndpoint, setExpandedEndpoint] = useState<number | null>(0);
   
   const apiBaseUrl = process.env.NEXT_PUBLIC_DOCTOR_API_BASE_URL || 'http://localhost:4000';
+  const endpoints = getEndpoints(apiBaseUrl);
 
   const copyToClipboard = async (text: string, id: string) => {
     try {

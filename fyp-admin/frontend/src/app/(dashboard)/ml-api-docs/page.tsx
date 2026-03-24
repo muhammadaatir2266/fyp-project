@@ -32,7 +32,8 @@ interface Endpoint {
   };
 }
 
-const mlEndpoints: Endpoint[] = [
+  // Generate ML endpoints with dynamic base URL
+  const getMLEndpoints = (baseUrl: string): Endpoint[] => [
   {
     method: 'POST',
     path: '/api/v1/ml/predict',
@@ -43,7 +44,7 @@ const mlEndpoints: Endpoint[] = [
     ],
     response: 'Disease prediction with confidence scores',
     example: {
-      request: `curl -X POST "http://localhost:4000/api/v1/ml/predict" \\
+      request: `curl -X POST "${baseUrl}/api/v1/ml/predict" \\
   -H "Authorization: Bearer YOUR_API_TOKEN" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -79,7 +80,7 @@ const mlEndpoints: Endpoint[] = [
     auth: 'API Token',
     response: 'Array of symptom names',
     example: {
-      request: `curl -X GET "http://localhost:4000/api/v1/ml/symptoms" \\
+      request: `curl -X GET "${baseUrl}/api/v1/ml/symptoms" \\
   -H "Authorization: Bearer YOUR_API_TOKEN"`,
       response: `{
   "success": true,
@@ -106,7 +107,7 @@ const mlEndpoints: Endpoint[] = [
     auth: 'API Token',
     response: 'Array of disease names',
     example: {
-      request: `curl -X GET "http://localhost:4000/api/v1/ml/diseases" \\
+      request: `curl -X GET "${baseUrl}/api/v1/ml/diseases" \\
   -H "Authorization: Bearer YOUR_API_TOKEN"`,
       response: `{
   "success": true,
@@ -131,7 +132,7 @@ const mlEndpoints: Endpoint[] = [
     auth: 'API Token',
     response: 'ML service health status',
     example: {
-      request: `curl -X GET "http://localhost:4000/api/v1/ml/health" \\
+      request: `curl -X GET "${baseUrl}/api/v1/ml/health" \\
   -H "Authorization: Bearer YOUR_API_TOKEN"`,
       response: `{
   "success": true,
@@ -149,6 +150,7 @@ export default function MLApiDocsPage() {
   const [expandedEndpoint, setExpandedEndpoint] = useState<number | null>(0);
   
   const apiBaseUrl = process.env.NEXT_PUBLIC_ML_API_BASE_URL || 'http://localhost:4000';
+  const mlEndpoints = getMLEndpoints(apiBaseUrl);
 
   const copyToClipboard = async (text: string, id: string) => {
     try {
