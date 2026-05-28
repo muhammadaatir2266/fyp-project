@@ -1,4 +1,4 @@
-// Prisma Schema for Admin Dashboard Backend
+// Prisma Schema - Shared across all backends (patient, doctor, admin)
 // Database: PostgreSQL
 
 generator client {
@@ -45,16 +45,29 @@ enum DoctorVerificationStatus {
   REJECTED
 }
 
+enum CallType {
+  INCOMING
+  OUTGOING
+  MISSED
+  VOICEMAIL
+}
+
+enum CallStatus {
+  ACTIVE
+  COMPLETED
+  FAILED
+}
+
 // ==================== MODELS ====================
 
 model User {
   id            String    @id @default(uuid())
   email         String    @unique
   password      String
-  role          UserRole  @default(ADMIN)
+  role          UserRole  @default(PATIENT)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  
+
   admin         Admin?
   patient       Patient?
   doctor        Doctor?
@@ -64,17 +77,17 @@ model Admin {
   id              String    @id @default(uuid())
   userId          String    @unique
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   firstName       String
   lastName        String
   phone           String?
-  
+
   isSuperAdmin    Boolean   @default(false)
   isActive        Boolean   @default(true)
-  
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  
+
   apiTokens       ApiToken[]
 }
 
@@ -84,15 +97,15 @@ model ApiToken {
   token           String    @unique
   adminId         String
   admin           Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  
+
   isActive        Boolean   @default(true)
   expiresAt       DateTime?
   lastUsedAt      DateTime?
   usageCount      Int       @default(0)
-  
+
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  
+
   apiLogs         ApiLog[]
 }
 
@@ -100,7 +113,7 @@ model ApiLog {
   id              String    @id @default(uuid())
   tokenId         String
   token           ApiToken  @relation(fields: [tokenId], references: [id], onDelete: Cascade)
-  
+
   endpoint        String
   method          String
   statusCode      Int
@@ -108,75 +121,78 @@ model ApiLog {
   responseBody    String?
   ipAddress       String?
   userAgent       String?
-  
+
   createdAt       DateTime  @default(now())
 }
 
 model Patient {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  firstName       String
-  lastName        String
-  dateOfBirth     DateTime?
-  gender          Gender?
-  phone           String?
-  address         String?
-  city            String?
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName        String
+  lastName         String
+  dateOfBirth      DateTime?
+  gender           Gender?
+  phone            String?
+  address          String?
+  city             String?
   emergencyContact String?
-  medicalHistory  String?
-  allergies       String?
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  appointments    Appointment[]
+  medicalHistory   String?
+  allergies        String?
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  appointments     Appointment[]
+  patientSymptoms  PatientSymptom[]
+  chatSessions     ChatSession[]
 }
 
 model Doctor {
-  id              String    @id @default(uuid())
-  userId          String    @unique
-  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
-  firstName       String
-  lastName        String
-  specialtyId     String
-  specialty       Specialty @relation(fields: [specialtyId], references: [id])
-  
-  phone           String
-  address         String
-  city            String
-  clinicLocation  String?
-  latitude        Float?
-  longitude       Float?
-  
-  qualifications  String?
-  experience      Int       @default(0)
-  rating          Float     @default(0)
-  reviewCount     Int       @default(0)
-  consultationFee Float?
-  
-  availableFrom   String?
-  availableTo     String?
-  workingDays     String[]
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName        String
+  lastName         String
+  specialtyId      String
+  specialty        Specialty @relation(fields: [specialtyId], references: [id])
+
+  phone            String
+  address          String
+  city             String
+  clinicLocation   String?
+  latitude         Float?
+  longitude        Float?
+
+  qualifications   String?
+  experience       Int       @default(0)
+  rating           Float     @default(0)
+  reviewCount      Int       @default(0)
+  consultationFee  Float?
+
+  availableFrom    String?
+  availableTo      String?
+  workingDays      String[]
   unavailableDates String[]  @default([])
-  
+
   // Verification fields
-  licenseNumber   String?
-  verificationDocument String?  // URL to uploaded document
-  verificationStatus DoctorVerificationStatus @default(PENDING)
-  verificationNotes String?
-  verifiedAt      DateTime?
-  verifiedBy      String?  // Admin ID who verified
-  
-  isActive        Boolean   @default(false)  // Changed to false by default
-  isVerified      Boolean   @default(false)
-  
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  
-  appointments    Appointment[]
+  licenseNumber        String?
+  verificationDocument String?
+  verificationStatus   DoctorVerificationStatus @default(PENDING)
+  verificationNotes    String?
+  verifiedAt           DateTime?
+  verifiedBy           String?
+
+  isActive         Boolean   @default(false)
+  isVerified       Boolean   @default(false)
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  appointments     Appointment[]
+  callLogs         CallLog[]
 }
 
 model Specialty {
@@ -184,11 +200,101 @@ model Specialty {
   name        String    @unique
   description String?
   iconName    String?
-  
+
   doctors     Doctor[]
-  
+  diseases    Disease[]
+
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+model Symptom {
+  id          String    @id @default(uuid())
+  name        String    @unique
+  description String?
+  severity    Int       @default(1)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  patientSymptoms  PatientSymptom[]
+  diseaseSymptoms  DiseaseSymptom[]
+}
+
+model Disease {
+  id                    String    @id @default(uuid())
+  name                  String    @unique
+  description           String?
+  precautions           String[]
+  recommendedSpecialtyId String?
+  recommendedSpecialty  Specialty? @relation(fields: [recommendedSpecialtyId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  diseaseSymptoms  DiseaseSymptom[]
+  predictions      Prediction[]
+}
+
+model DiseaseSymptom {
+  id        String  @id @default(uuid())
+  diseaseId String
+  disease   Disease @relation(fields: [diseaseId], references: [id], onDelete: Cascade)
+  symptomId String
+  symptom   Symptom @relation(fields: [symptomId], references: [id], onDelete: Cascade)
+  weight    Float   @default(1.0)
+
+  @@unique([diseaseId, symptomId])
+}
+
+model PatientSymptom {
+  id            String   @id @default(uuid())
+  patientId     String
+  patient       Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  symptomId     String
+  symptom       Symptom  @relation(fields: [symptomId], references: [id])
+  severity      Int      @default(1)
+  duration      String?
+  notes         String?
+  reportedAt    DateTime @default(now())
+  chatSessionId String?
+  chatSession   ChatSession? @relation(fields: [chatSessionId], references: [id], onDelete: SetNull)
+}
+
+model ChatSession {
+  id        String    @id @default(uuid())
+  patientId String
+  patient   Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  startedAt DateTime  @default(now())
+  endedAt   DateTime?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  messages        ChatMessage[]
+  predictions     Prediction[]
+  patientSymptoms PatientSymptom[]
+}
+
+model ChatMessage {
+  id            String      @id @default(uuid())
+  chatSessionId String
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+  role          String
+  content       String
+  createdAt     DateTime    @default(now())
+}
+
+model Prediction {
+  id            String      @id @default(uuid())
+  chatSessionId String
+  chatSession   ChatSession @relation(fields: [chatSessionId], references: [id], onDelete: Cascade)
+  diseaseId     String
+  disease       Disease     @relation(fields: [diseaseId], references: [id])
+  confidence    Float
+  inputSymptoms String[]
+
+  createdAt     DateTime    @default(now())
 }
 
 model Appointment {
@@ -197,14 +303,32 @@ model Appointment {
   patient     Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
   doctorId    String
   doctor      Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
-  
+
   scheduledAt DateTime
   duration    Int               @default(30)
   status      AppointmentStatus @default(PENDING)
   source      BookingSource     @default(PATIENT_APP)
   reason      String?
   notes       String?
-  
+
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
+}
+
+model CallLog {
+  id          String     @id @default(uuid())
+  doctorId    String
+  doctor      Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  callerName  String?
+  callerPhone String
+  callType    CallType
+  status      CallStatus @default(COMPLETED)
+  startedAt   DateTime   @default(now())
+  endedAt     DateTime?
+  duration    Int?
+  summary     String?
+  transcript  String?
+  vapiCallId  String?
+
+  createdAt   DateTime   @default(now())
 }
