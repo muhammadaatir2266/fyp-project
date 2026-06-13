@@ -1,4 +1,4 @@
-import { Request, Response } from 'express'
+import { Request, Response, NextFunction } from 'express'
 import axios from 'axios'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../middleware/error.middleware'
@@ -14,7 +14,7 @@ const WEBHOOK_URL =
   process.env.N8N_CHAT_WEBHOOK_URL ||
   'https://fyp2026.app.n8n.cloud/webhook/55479a0c-6a9f-4083-ad95-8cbe28d9e828'
 
-export const sendMessage = async (req: Request, res: Response) => {
+export const sendMessage = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { message, location, sessionId } = messageSchema.parse(req.body)
 
@@ -160,13 +160,13 @@ export const sendMessage = async (req: Request, res: Response) => {
     }
     if (axios.isAxiosError(error)) {
       console.error('Webhook error:', error.response?.data || error.message)
-      throw new AppError('Failed to process message. Please try again later.', 503)
+      return next(new AppError('Failed to process message. Please try again later.', 503))
     }
-    throw error
+    next(error)
   }
 }
 
-export const getChatSessions = async (req: Request, res: Response) => {
+export const getChatSessions = async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user) throw new AppError('Authentication required', 401)
 
@@ -185,7 +185,6 @@ export const getChatSessions = async (req: Request, res: Response) => {
 
     res.json(sessions)
   } catch (error) {
-    if (error instanceof AppError) return res.status(error.statusCode).json({ error: error.message })
-    res.status(500).json({ error: 'Failed to fetch sessions' })
+    next(error)
   }
 }

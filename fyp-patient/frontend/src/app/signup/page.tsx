@@ -79,7 +79,7 @@ export default function SignupPage() {
         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-lg transition-transform group-hover:scale-105">
           <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
         </div>
-        <span className="text-base sm:text-lg font-bold text-gray-900 hidden sm:block">
+        <span className="text-base sm:text-lg font-bold text-foreground hidden sm:block">
           Trimed Al
         </span>
       </Link>
@@ -257,7 +257,7 @@ export default function SignupPage() {
           </CardContent>
 
           <CardFooter className="justify-center pb-6">
-            <p className="text-center text-gray-900">
+            <p className="text-center text-sm text-muted-foreground">
               Already have an account?{" "}
               <Link
                 href="/login"

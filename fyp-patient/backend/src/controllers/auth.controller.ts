@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { Request, Response, NextFunction } from "express";
 import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
 import { generateToken } from "../lib/jwt";
@@ -21,38 +21,27 @@ const signupSchema = z.object({
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
 });
 
-export const login = async (req: Request, res: Response) => {
+export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Validate input
     const { email, password } = loginSchema.parse(req.body);
 
-    // Find user
     const user = await prisma.user.findUnique({
       where: { email },
-      include: {
-        patient: true,
-      },
+      include: { patient: true },
     });
 
-    if (!user) {
-      throw new AppError("Invalid email or password", 401);
-    }
+    if (!user) throw new AppError("Invalid email or password", 401);
 
-    // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new AppError("Invalid email or password", 401);
-    }
+    if (!isPasswordValid) throw new AppError("Invalid email or password", 401);
 
-    // Generate token
     const token = generateToken({
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    // Prepare user data
-    const userData: any = {
+    const userData: Record<string, unknown> = {
       id: user.id,
       email: user.email,
       role: user.role,
@@ -69,36 +58,27 @@ export const login = async (req: Request, res: Response) => {
       };
     }
 
-    res.json({
-      token,
-      user: userData,
-    });
+    res.json({ token, user: userData });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    throw error;
+    next(error);
   }
 };
 
-export const signup = async (req: Request, res: Response) => {
+export const signup = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Validate input
     const data = signupSchema.parse(req.body);
 
-    // Check if user already exists
     const existingUser = await prisma.user.findUnique({
       where: { email: data.email },
     });
 
-    if (existingUser) {
-      throw new AppError("User with this email already exists", 409);
-    }
+    if (existingUser) throw new AppError("User with this email already exists", 409);
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // Create user and patient record (force PATIENT role)
     const user = await prisma.user.create({
       data: {
         email: data.email,
@@ -114,20 +94,16 @@ export const signup = async (req: Request, res: Response) => {
           },
         },
       },
-      include: {
-        patient: true,
-      },
+      include: { patient: true },
     });
 
-    // Generate token
     const token = generateToken({
       userId: user.id,
       email: user.email,
       role: user.role,
     });
 
-    // Prepare response
-    const userData: any = {
+    const userData: Record<string, unknown> = {
       id: user.id,
       email: user.email,
       role: user.role,
@@ -151,40 +127,33 @@ export const signup = async (req: Request, res: Response) => {
     if (error instanceof z.ZodError) {
       return res.status(400).json({ error: error.errors[0].message });
     }
-    throw error;
+    next(error);
   }
 };
 
-export const getSpecialties = async (req: Request, res: Response) => {
+export const getSpecialties = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const specialties = await prisma.specialty.findMany({
       orderBy: { name: "asc" },
     });
     res.json({ specialties });
   } catch (error) {
-    throw error;
+    next(error);
   }
 };
 
-export const getMe = async (req: Request, res: Response) => {
+export const getMe = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    if (!req.user) {
-      throw new AppError("Authentication required", 401);
-    }
+    if (!req.user) throw new AppError("Authentication required", 401);
 
     const user = await prisma.user.findUnique({
       where: { id: req.user.userId },
-      include: {
-        patient: true,
-      },
+      include: { patient: true },
     });
 
-    if (!user) {
-      throw new AppError("User not found", 404);
-    }
+    if (!user) throw new AppError("User not found", 404);
 
-    // Prepare user data
-    const userData: any = {
+    const userData: Record<string, unknown> = {
       id: user.id,
       email: user.email,
       role: user.role,
@@ -203,6 +172,6 @@ export const getMe = async (req: Request, res: Response) => {
 
     res.json({ user: userData });
   } catch (error) {
-    throw error;
+    next(error);
   }
 };

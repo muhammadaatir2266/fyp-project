@@ -8,8 +8,8 @@ import { api } from '@/lib/api';
 import { setAuthToken } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Shield, Lock, Mail, Eye, EyeOff, Sparkles } from 'lucide-react';
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Shield, Lock, Mail, Eye, EyeOff, Sparkles, AlertCircle, ArrowRight } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -29,8 +29,8 @@ export default function LoginPage() {
       const response = await api.post('/auth/login', { email, password });
       setAuthToken(response.token);
       router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: unknown) {
+      setError((err as { message?: string }).message || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -42,116 +42,88 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 via-emerald-50 to-cyan-50 p-4 relative overflow-hidden">
-      {/* Logo - Top Left */}
+    <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 py-8 sm:py-12 relative overflow-hidden bg-background">
+      {/* Background blur orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-secondary/10 rounded-full blur-3xl" />
+      </div>
+
+      {/* Logo – Top Left */}
       <Link
         href={websiteUrl}
-        className="absolute top-4 sm:top-6 left-4 sm:left-6 flex items-center gap-2 sm:gap-3 z-50 group"
+        className="absolute top-4 sm:top-6 left-4 sm:left-6 flex items-center gap-2 sm:gap-3 z-50"
       >
-        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-lg transition-transform group-hover:scale-105">
+        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-lg shadow-primary/20">
           <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
         </div>
-        <span className="text-base sm:text-lg font-bold text-gray-900 hidden sm:block">
+        <span className="text-lg sm:text-xl font-bold text-foreground">
           Trimed Al
         </span>
       </Link>
-
-      {/* Animated Background Elements */}
-      <div className="absolute inset-0 overflow-hidden">
-        <motion.div
-          animate={{
-            scale: [1, 1.2, 1],
-            rotate: [0, 90, 0],
-          }}
-          transition={{
-            duration: 20,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-teal-200/20 to-transparent rounded-full blur-3xl"
-        />
-        <motion.div
-          animate={{
-            scale: [1.2, 1, 1.2],
-            rotate: [90, 0, 90],
-          }}
-          transition={{
-            duration: 15,
-            repeat: Infinity,
-            ease: "linear"
-          }}
-          className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-emerald-200/20 to-transparent rounded-full blur-3xl"
-        />
-      </div>
 
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
-        className="relative z-10 w-full max-w-md"
+        className="w-full max-w-md relative z-10"
       >
-        <Card className="border-0 shadow-2xl backdrop-blur-sm bg-white/95">
-          <CardHeader className="space-y-4 pb-8">
-            {/* Logo/Icon */}
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
-              className="mx-auto w-20 h-20 bg-gradient-to-br from-teal-500 to-emerald-600 rounded-2xl flex items-center justify-center shadow-lg"
-            >
-              <Shield className="h-10 w-10 text-white" />
-            </motion.div>
-
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-            >
-              <CardTitle className="text-3xl font-bold text-center bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
-                Admin Dashboard
-              </CardTitle>
-              <CardDescription className="text-center text-base mt-2">
-                Sign in to manage the Trimed Al platform
-              </CardDescription>
-            </motion.div>
+        <Card className="border-border/50 shadow-2xl bg-card/50 backdrop-blur-sm">
+          <CardHeader className="space-y-1 text-center pb-8">
+            <div className="flex justify-center mb-4">
+              <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-2 rounded-full bg-primary/10 text-primary text-xs sm:text-sm font-medium">
+                <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
+                Admin Portal
+              </div>
+            </div>
+            <CardTitle className="text-2xl sm:text-3xl font-bold text-foreground">
+              Sign In
+            </CardTitle>
+            <CardDescription className="text-muted-foreground text-sm sm:text-base">
+              Access the Trimed Al management panel
+            </CardDescription>
           </CardHeader>
 
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-5">
-              {/* Email Field */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.4 }}
-                className="space-y-2"
-              >
-                <label htmlFor="email" className="text-sm font-medium text-gray-700 flex items-center">
-                  <Mail className="h-4 w-4 mr-2 text-teal-600" />
+            {error && (
+              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 sm:p-4 mb-6 flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-destructive flex-shrink-0" />
+                <p className="text-xs sm:text-sm text-destructive font-medium">{error}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Email */}
+              <div className="space-y-2">
+                <label htmlFor="email" className="block text-sm font-medium text-foreground">
                   Email Address
                 </label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="admin@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="h-12 border-2 focus:border-teal-500 transition-colors"
-                />
-              </motion.div>
+                <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    <Mail className="w-4 h-4" />
+                  </div>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="admin@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="pl-9 h-11 bg-background/50 border-input focus-visible:ring-primary"
+                  />
+                </div>
+              </div>
 
-              {/* Password Field */}
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
-                className="space-y-2"
-              >
-                <label htmlFor="password" className="text-sm font-medium text-gray-700 flex items-center">
-                  <Lock className="h-4 w-4 mr-2 text-teal-600" />
+              {/* Password */}
+              <div className="space-y-2">
+                <label htmlFor="password" className="block text-sm font-medium text-foreground">
                   Password
                 </label>
                 <div className="relative">
+                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
+                    <Lock className="w-4 h-4" />
+                  </div>
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
@@ -159,98 +131,67 @@ export default function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="h-12 border-2 focus:border-teal-500 transition-colors pr-12"
+                    className="pl-9 pr-10 h-11 bg-background/50 border-input focus-visible:ring-primary"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-primary transition-colors"
                   >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
-                </div>
-              </motion.div>
-
-              {/* Error Message */}
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  className="text-sm text-red-600 bg-red-50 p-4 rounded-lg border border-red-200 flex items-center"
-                >
-                  <span className="font-medium">⚠️ {error}</span>
-                </motion.div>
-              )}
-
-              {/* Submit Button */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.6 }}
-              >
-                <Button
-                  type="submit"
-                  className="w-full h-12 bg-gradient-to-r from-teal-600 to-emerald-600 hover:from-teal-700 hover:to-emerald-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <div className="flex items-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2"></div>
-                      Signing in...
-                    </div>
-                  ) : (
-                    <div className="flex items-center">
-                      <Shield className="h-5 w-5 mr-2" />
-                      Sign In
-                    </div>
-                  )}
-                </Button>
-              </motion.div>
-            </form>
-
-            {/* Demo Credentials */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
-              className="mt-6"
-            >
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-200"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-4 bg-white text-gray-500">Quick Access</span>
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={fillDemoCredentials}
-                className="mt-4 w-full p-4 bg-gradient-to-r from-teal-50 to-emerald-50 hover:from-teal-100 hover:to-emerald-100 rounded-lg border-2 border-teal-200 hover:border-teal-300 transition-all duration-300 group"
+              {/* Submit */}
+              <Button
+                type="submit"
+                disabled={loading}
+                className="w-full h-11 text-base font-semibold shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity"
               >
-                <div className="flex items-center justify-center space-x-2">
-                  <Sparkles className="h-5 w-5 text-teal-600 group-hover:scale-110 transition-transform" />
-                  <span className="font-medium text-teal-700">Use Demo Credentials</span>
-                </div>
-                <div className="mt-2 text-xs text-gray-600 font-mono">
-                  admin@example.com / admin123
-                </div>
-              </button>
-            </motion.div>
+                {loading ? "Signing in..." : "Sign In"}
+                <ArrowRight className="ml-2 w-4 h-4" />
+              </Button>
+            </form>
 
-            {/* Footer */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
-              className="mt-6 text-center text-xs text-gray-500"
+            {/* Demo credentials */}
+            <div className="relative my-6">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-border" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-4 bg-card text-muted-foreground">or</span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={fillDemoCredentials}
+              className="w-full p-4 bg-primary/5 hover:bg-primary/10 rounded-xl border border-primary/20 hover:border-primary/40 transition-all duration-200 group"
             >
-              <p>Secure admin access to the Trimed Al platform</p>
-              <p className="mt-1">© 2024 Trimed Al Admin Panel</p>
-            </motion.div>
+              <div className="flex items-center justify-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+                <span className="font-medium text-primary text-sm">Use Demo Credentials</span>
+              </div>
+              <div className="mt-1 text-xs text-muted-foreground font-mono">
+                admin@example.com / admin123
+              </div>
+            </button>
           </CardContent>
+
+          <CardFooter className="justify-center pb-6">
+            <p className="text-center text-sm text-muted-foreground">
+              © 2024 Trimed Al — Secure Admin Access
+            </p>
+          </CardFooter>
         </Card>
+
+        <p className="text-center text-sm text-muted-foreground mt-6">
+          By signing in, you agree to our{" "}
+          <Link href="/terms" className="text-primary hover:underline">Terms of Service</Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="text-primary hover:underline">Privacy Policy</Link>
+        </p>
       </motion.div>
     </div>
   );
