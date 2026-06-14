@@ -29,6 +29,8 @@ import api from "@/lib/api";
 export default function SignupPage() {
   const router = useRouter();
   const websiteUrl = process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3000";
+  const LANGUAGE_OPTIONS = ["English", "Urdu", "Punjabi", "Sindhi", "Pashto", "Balochi"];
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -41,7 +43,9 @@ export default function SignupPage() {
     clinicLocation: "",
     address: "",
     city: "",
+    gender: "",
   });
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [verificationDocument, setVerificationDocument] = useState<File | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
@@ -95,6 +99,9 @@ export default function SignupPage() {
       Object.entries(formData).forEach(([key, val]) => {
         if (key !== "confirmPassword") formDataToSend.append(key, val);
       });
+      if (selectedLanguages.length > 0) {
+        formDataToSend.append("languages", JSON.stringify(selectedLanguages));
+      }
       formDataToSend.append("verificationDocument", verificationDocument);
 
       await api.post("/auth/signup", formDataToSend, {
@@ -329,6 +336,57 @@ export default function SignupPage() {
                       </label>
                       <Input id="city" name="city" type="text" placeholder="New York"
                         value={formData.city} onChange={handleChange} required className="h-12" />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Optional: Gender & Languages */}
+                <div className="space-y-6 pt-6 border-t border-border/50">
+                  <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                    <User className="w-5 h-5 text-primary" />
+                    Patient-Facing Info <span className="text-sm font-normal text-muted-foreground">(optional)</span>
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <label htmlFor="gender" className="block text-sm font-medium text-foreground">Gender</label>
+                      <select
+                        id="gender"
+                        name="gender"
+                        className="w-full h-12 rounded-md border border-input bg-background px-3 text-sm"
+                        value={formData.gender}
+                        onChange={handleChange}
+                      >
+                        <option value="">Prefer not to say</option>
+                        <option value="MALE">Male</option>
+                        <option value="FEMALE">Female</option>
+                        <option value="OTHER">Other</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="block text-sm font-medium text-foreground">Languages Spoken</label>
+                      <div className="flex flex-wrap gap-2 pt-1">
+                        {LANGUAGE_OPTIONS.map((lang) => {
+                          const sel = selectedLanguages.includes(lang);
+                          return (
+                            <button
+                              key={lang}
+                              type="button"
+                              onClick={() =>
+                                setSelectedLanguages((prev) =>
+                                  sel ? prev.filter((l) => l !== lang) : [...prev, lang]
+                                )
+                              }
+                              className={`px-3 py-1 rounded-full border text-sm transition-colors ${
+                                sel
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "border-border text-muted-foreground hover:border-primary"
+                              }`}
+                            >
+                              {lang}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>

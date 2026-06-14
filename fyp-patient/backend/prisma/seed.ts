@@ -68,6 +68,8 @@ async function main() {
       qualifications: 'MD, FACC - Board Certified Cardiologist',
       experience: 15, consultationFee: 2000,
       latitude: 24.8607 + 0.010, longitude: 67.0011 + 0.005,
+      gender: Gender.FEMALE,
+      languages: ['English', 'Urdu'],
     },
     {
       email: 'doctor2@mediassist.com',
@@ -77,6 +79,8 @@ async function main() {
       qualifications: 'MBBS, FCPS - General Physician',
       experience: 8,  consultationFee: 1500,
       latitude: 31.5204 + 0.020, longitude: 74.3587 - 0.012,
+      gender: Gender.MALE,
+      languages: ['English', 'Urdu', 'Punjabi'],
     },
     {
       email: 'doctor3@mediassist.com',
@@ -86,6 +90,8 @@ async function main() {
       qualifications: 'MBBS, FCPS - Dermatologist',
       experience: 10, consultationFee: 2500,
       latitude: 33.6844 - 0.008, longitude: 73.0479 + 0.015,
+      gender: Gender.FEMALE,
+      languages: ['English', 'Urdu', 'Punjabi'],
     },
     {
       email: 'doctor4@mediassist.com',
@@ -95,6 +101,8 @@ async function main() {
       qualifications: 'MD, Neurology - Aga Khan Hospital',
       experience: 12, consultationFee: 3000,
       latitude: 24.8607 - 0.015, longitude: 67.0011 + 0.020,
+      gender: Gender.MALE,
+      languages: ['English', 'Urdu', 'Sindhi'],
     },
     {
       email: 'doctor5@mediassist.com',
@@ -104,6 +112,8 @@ async function main() {
       qualifications: 'MBBS, DCH - Pediatrician',
       experience: 7,  consultationFee: 1800,
       latitude: 31.5204 - 0.025, longitude: 74.3587 + 0.018,
+      gender: Gender.FEMALE,
+      languages: ['Urdu', 'Punjabi'],
     },
     {
       email: 'doctor6@mediassist.com',
@@ -113,6 +123,8 @@ async function main() {
       qualifications: 'MBBS, FRCS - Orthopedic Surgeon',
       experience: 18, consultationFee: 3500,
       latitude: 33.6844 + 0.012, longitude: 73.0479 - 0.010,
+      gender: Gender.MALE,
+      languages: ['English', 'Urdu', 'Pashto'],
     },
     {
       email: 'doctor7@mediassist.com',
@@ -122,6 +134,8 @@ async function main() {
       qualifications: 'MBBS, FCPS - Gastroenterologist',
       experience: 9,  consultationFee: 2200,
       latitude: 24.8607 + 0.025, longitude: 67.0011 - 0.018,
+      gender: Gender.FEMALE,
+      languages: ['English', 'Urdu', 'Balochi'],
     },
   ]
 
@@ -145,6 +159,8 @@ async function main() {
             city: d.city,
             latitude: d.latitude,
             longitude: d.longitude,
+            gender: d.gender,
+            languages: d.languages,
             qualifications: d.qualifications,
             experience: d.experience,
             consultationFee: d.consultationFee,
@@ -255,15 +271,19 @@ async function main() {
       if (!doctorRecord) continue
 
       for (let i = 0; i < sample.ratings.length; i++) {
-        // Create a COMPLETED appointment
+        // Create a COMPLETED appointment with confirmedAt (simulates fast confirmation)
+        const scheduledAt = new Date(Date.now() - (i + 1) * 7 * 24 * 60 * 60 * 1000) // weeks ago
+        const createdAt = new Date(scheduledAt.getTime() - 3 * 24 * 60 * 60 * 1000)   // 3 days before scheduled
+        const confirmedAt = new Date(createdAt.getTime() + (1 + i) * 60 * 60 * 1000)  // confirmed 1-N hours after booking
         const appointment = await prisma.appointment.create({
           data: {
             patientId,
             doctorId: doctorRecord.id,
-            scheduledAt: new Date(Date.now() - (i + 1) * 7 * 24 * 60 * 60 * 1000), // weeks ago
+            scheduledAt,
             duration: 30,
             status: 'COMPLETED',
             source: 'PATIENT_APP',
+            confirmedAt,
           },
         })
 
@@ -301,6 +321,25 @@ async function main() {
     }
 
     console.log(`✅ Created ${reviewsCreated} sample reviews with real rating recalculation`)
+
+    // ---- Reliability demo: doctor4 (Usman Malik / Neurology) has 2 doctor-cancelled past appointments ----
+    const doctor4Record = doctorRecords.find((d) => d.email === 'doctor4@mediassist.com')
+    if (doctor4Record) {
+      for (let i = 0; i < 2; i++) {
+        await prisma.appointment.create({
+          data: {
+            patientId,
+            doctorId: doctor4Record.id,
+            scheduledAt: new Date(Date.now() - (i + 10) * 7 * 24 * 60 * 60 * 1000),
+            duration: 30,
+            status: 'CANCELLED',
+            cancelledBy: 'DOCTOR',
+            source: 'PATIENT_APP',
+          },
+        })
+      }
+      console.log('✅ Added 2 doctor-cancelled appointments for reliability demo (doctor4)')
+    }
   }
 
   console.log('\n🎉 Database seeding completed successfully!')

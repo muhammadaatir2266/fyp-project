@@ -44,7 +44,7 @@ export const signup = (req: Request, res: Response): void => {
     }
 
     try {
-      const { firstName, lastName, email, password, phone, specialization, licenseNumber, clinicLocation, address, city } =
+      const { firstName, lastName, email, password, phone, specialization, licenseNumber, clinicLocation, address, city, gender, languages } =
         req.body as Record<string, string>
 
       if (!req.file) {
@@ -84,6 +84,8 @@ export const signup = (req: Request, res: Response): void => {
               address,
               city,
               ...(cityCentroid(city) ?? {}),
+              ...(gender && { gender: gender as any }),
+              ...(languages && { languages: JSON.parse(languages) }),
               verificationDocument: `/uploads/verification-documents/${req.file.filename}`,
               verificationStatus: 'PENDING',
               isActive: false,

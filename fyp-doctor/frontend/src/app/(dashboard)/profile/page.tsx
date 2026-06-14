@@ -7,8 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
 import api from "@/lib/api";
 import type { Doctor } from "@/types";
+
+const LANGUAGE_OPTIONS = ["English", "Urdu", "Punjabi", "Sindhi", "Pashto", "Balochi"];
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Partial<Doctor>>({
@@ -20,6 +24,8 @@ export default function ProfilePage() {
     qualifications: "",
     experience: 0,
     consultationFee: 0,
+    gender: undefined,
+    languages: [],
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -200,7 +206,7 @@ export default function ProfilePage() {
 
             <div className="space-y-2">
               <label htmlFor="consultationFee" className="text-sm font-medium">
-                Consultation Fee ($)
+                Consultation Fee (Rs.)
               </label>
               <Input
                 id="consultationFee"
@@ -210,6 +216,51 @@ export default function ProfilePage() {
                   handleChange("consultationFee", parseFloat(e.target.value) || 0)
                 }
               />
+            </div>
+
+            <div className="space-y-2">
+              <label htmlFor="gender" className="text-sm font-medium">Gender</label>
+              <select
+                id="gender"
+                className="w-full h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={profile.gender ?? ""}
+                onChange={(e) => handleChange("gender", e.target.value)}
+              >
+                <option value="">Prefer not to say</option>
+                <option value="MALE">Male</option>
+                <option value="FEMALE">Female</option>
+                <option value="OTHER">Other</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Languages */}
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Languages Spoken</label>
+            <div className="flex flex-wrap gap-2">
+              {LANGUAGE_OPTIONS.map((lang) => {
+                const selected = (profile.languages ?? []).includes(lang);
+                return (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => {
+                      const current = profile.languages ?? [];
+                      handleChange(
+                        "languages",
+                        selected ? current.filter((l) => l !== lang) : [...current, lang]
+                      );
+                    }}
+                    className={`px-3 py-1 rounded-full border text-sm transition-colors ${
+                      selected
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "border-border text-muted-foreground hover:border-primary hover:text-foreground"
+                    }`}
+                  >
+                    {lang}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

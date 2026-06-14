@@ -58,6 +58,12 @@ enum CallStatus {
   FAILED
 }
 
+enum CancelledBy {
+  PATIENT
+  DOCTOR
+  ADMIN
+}
+
 // ==================== MODELS ====================
 
 model User {
@@ -168,6 +174,9 @@ model Doctor {
   clinicLocation   String?
   latitude         Float?
   longitude        Float?
+
+  gender           Gender?
+  languages        String[]  @default([])
 
   qualifications   String?
   experience       Int       @default(0)
@@ -308,12 +317,14 @@ model Appointment {
   doctorId    String
   doctor      Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
 
-  scheduledAt DateTime
-  duration    Int               @default(30)
-  status      AppointmentStatus @default(PENDING)
-  source      BookingSource     @default(PATIENT_APP)
-  reason      String?
-  notes       String?
+  scheduledAt  DateTime
+  duration     Int               @default(30)
+  status       AppointmentStatus @default(PENDING)
+  source       BookingSource     @default(PATIENT_APP)
+  reason       String?
+  notes        String?
+  cancelledBy  CancelledBy?
+  confirmedAt  DateTime?
 
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt

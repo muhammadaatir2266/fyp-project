@@ -68,6 +68,8 @@ export const updateAppointment = async (req: Request, res: Response): Promise<vo
       where: { id },
       data: {
         ...(status && { status: status as AppointmentStatus }),
+        ...(status === 'CANCELLED' && { cancelledBy: 'DOCTOR' }),
+        ...(status === 'CONFIRMED' && !existing.confirmedAt && { confirmedAt: new Date() }),
         ...(notes && { notes }),
         ...(scheduledAt && { scheduledAt: new Date(scheduledAt) }),
       },

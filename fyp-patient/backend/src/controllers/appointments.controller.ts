@@ -129,6 +129,7 @@ export const updateAppointment = async (req: Request, res: Response) => {
       where: { id },
       data: {
         ...(data.status && { status: data.status }),
+        ...(data.status === 'CANCELLED' && { cancelledBy: 'PATIENT' }),
         ...(data.scheduledAt && { scheduledAt: new Date(data.scheduledAt) }),
         ...(data.reason !== undefined && { reason: data.reason }),
       },

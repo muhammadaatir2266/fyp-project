@@ -65,7 +65,7 @@ export const getProfile = async (req: Request, res: Response): Promise<void> => 
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
   try {
     const doctorId = req.doctorId!
-    const { firstName, lastName, phone, address, city, qualifications, experience, consultationFee } =
+    const { firstName, lastName, phone, address, city, qualifications, experience, consultationFee, gender, languages } =
       req.body as {
         firstName?: string
         lastName?: string
@@ -75,6 +75,8 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         qualifications?: string
         experience?: number | string
         consultationFee?: number | string
+        gender?: string
+        languages?: string[]
       }
 
     const doctor = await prisma.doctor.update({
@@ -89,6 +91,8 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         ...(qualifications && { qualifications }),
         ...(experience !== undefined && { experience: parseInt(String(experience)) }),
         ...(consultationFee !== undefined && { consultationFee: parseFloat(String(consultationFee)) }),
+        ...(gender && { gender: gender as any }),
+        ...(languages !== undefined && { languages }),
       },
       include: { specialty: true },
     })

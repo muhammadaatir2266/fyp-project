@@ -8,6 +8,8 @@ export interface Doctor {
   phone: string;
   address: string;
   city: string;
+  gender?: "MALE" | "FEMALE" | "OTHER";
+  languages?: string[];
   qualifications?: string;
   experience: number;
   rating: number;

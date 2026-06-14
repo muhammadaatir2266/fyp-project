@@ -59,10 +59,13 @@ export const updateAppointment = async (req: Request, res: Response): Promise<vo
     const id = req.params.id as string
     const { status, notes } = req.body as { status?: string; notes?: string }
 
+    const existing = await prisma.appointment.findUnique({ where: { id }, select: { confirmedAt: true } })
     const appointment = await prisma.appointment.update({
       where: { id },
       data: {
         ...(status && { status: status as AppointmentStatus }),
+        ...(status === 'CANCELLED' && { cancelledBy: 'ADMIN' }),
+        ...(status === 'CONFIRMED' && existing && !existing.confirmedAt && { confirmedAt: new Date() }),
         ...(notes && { notes }),
       },
       include: { patient: true, doctor: { include: { specialty: true } } },
@@ -81,7 +84,7 @@ export const cancelAppointment = async (req: Request, res: Response): Promise<vo
 
     const appointment = await prisma.appointment.update({
       where: { id },
-      data: { status: 'CANCELLED' },
+      data: { status: 'CANCELLED', cancelledBy: 'ADMIN' },
       include: { patient: true, doctor: true },
     })
 
