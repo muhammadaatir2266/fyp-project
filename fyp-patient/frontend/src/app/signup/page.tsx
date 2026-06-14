@@ -2,8 +2,8 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Activity,
   Mail,
@@ -14,15 +14,25 @@ import {
   ArrowRight,
   Sparkles,
   AlertCircle,
+  Stethoscope,
 } from "lucide-react";
 import { signup } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { resolvePostAuthPath } from "@/lib/guest-handoff";
 
-export default function SignupPage() {
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
+
+function SignupForm() {
   const router = useRouter();
-  const websiteUrl = process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3000";
+  const searchParams = useSearchParams();
+  const websiteUrl = process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003";
+
+  const fromGuest = searchParams.get("from") === "guest";
+  const specialty = searchParams.get("specialty") ?? undefined;
+  const guestSessionId = searchParams.get("guestSessionId") ?? undefined;
+
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState("");
@@ -47,7 +57,7 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      await signup({
+      const { token } = await signup({
         email: formData.email,
         password: formData.password,
         firstName: formData.firstName,
@@ -55,9 +65,29 @@ export default function SignupPage() {
         role: "PATIENT",
       });
 
-      router.push("/patient/dashboard");
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Failed to create account");
+      // Claim guest predictions if we arrived from guest flow
+      if (guestSessionId && token) {
+        await fetch(`${API_URL}/chat/guest/claim`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ guestSessionId }),
+        }).catch(() => {});
+      }
+
+      // Build fake URLSearchParams to reuse resolvePostAuthPath
+      const fakeParams = new URLSearchParams();
+      if (fromGuest && specialty) {
+        fakeParams.set("redirect", "doctors");
+        fakeParams.set("specialty", specialty);
+      }
+      const destination = resolvePostAuthPath(fakeParams);
+      router.push(destination);
+    } catch (err: unknown) {
+      const e = err as { response?: { data?: { error?: string } } };
+      setError(e?.response?.data?.error || "Failed to create account");
     } finally {
       setIsLoading(false);
     }
@@ -106,9 +136,18 @@ export default function SignupPage() {
           </CardHeader>
 
           <CardContent>
+            {fromGuest && specialty && (
+              <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-3">
+                <Stethoscope className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                <p className="text-sm text-primary font-medium">
+                  Create your account to find a {specialty} near you and book an appointment.
+                </p>
+              </div>
+            )}
+
             {error && (
               <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 mb-6 flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-destructive flex-shrink-0" />
+                <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
                 <p className="text-sm text-destructive font-medium">{error}</p>
               </div>
             )}
@@ -248,7 +287,7 @@ export default function SignupPage() {
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20 bg-gradient-to-r from-primary to-secondary hover:opacity-90 transition-opacity mt-2"
+                className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20 bg-linear-to-r from-primary to-secondary hover:opacity-90 transition-opacity mt-2"
               >
                 {isLoading ? "Creating Account..." : "Create Account"}
                 <ArrowRight className="ml-2 w-4 h-4" />
@@ -270,5 +309,17 @@ export default function SignupPage() {
         </Card>
       </motion.div>
     </div>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+      </div>
+    }>
+      <SignupForm />
+    </Suspense>
   );
 }

@@ -367,6 +367,18 @@ model CallLog {
   createdAt   DateTime   @default(now())
 }
 
+model GuestChatSnapshot {
+  id             String   @id @default(uuid())
+  guestSessionId String   @unique
+  predictions    Json
+  symptoms       Json?
+  specialty      String?
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  @@index([expiresAt])
+}
+
 model CallBookingIntent {
   id           String   @id @default(uuid())
   patientId    String

@@ -35,7 +35,17 @@ export const login = async (
   return res.json();
 };
 
-export const getRedirectUrl = (role: UserRole, token: string): string => {
+export interface GuestRedirectOpts {
+  specialty?: string;
+  guestSessionId?: string;
+  redirect?: "doctors";
+}
+
+export const getRedirectUrl = (
+  role: UserRole,
+  token: string,
+  guestOpts?: GuestRedirectOpts
+): string => {
   const encoded = encodeURIComponent(token);
 
   const patientUrl =
@@ -44,6 +54,14 @@ export const getRedirectUrl = (role: UserRole, token: string): string => {
     process.env.NEXT_PUBLIC_DOCTOR_APP_URL || "http://localhost:3001";
   const adminUrl =
     process.env.NEXT_PUBLIC_ADMIN_APP_URL || "http://localhost:3002";
+
+  if (role === "PATIENT" && guestOpts) {
+    const params = new URLSearchParams({ token: encoded });
+    if (guestOpts.redirect) params.set("redirect", guestOpts.redirect);
+    if (guestOpts.specialty) params.set("specialty", guestOpts.specialty);
+    if (guestOpts.guestSessionId) params.set("guestSessionId", guestOpts.guestSessionId);
+    return `${patientUrl}/auth/callback?${params.toString()}`;
+  }
 
   switch (role) {
     case "PATIENT":

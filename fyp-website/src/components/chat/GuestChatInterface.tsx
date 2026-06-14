@@ -4,11 +4,14 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Loader2, Stethoscope, LogIn, UserPlus, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { sendGuestMessage } from "@/lib/guest-chat";
+import { sendGuestMessage, saveGuestSnapshot } from "@/lib/guest-chat";
 import {
   getOrCreateGuestSessionId,
   isGuestChatCompleted,
   markGuestChatCompleted,
+  saveGuestContext,
+  buildGuestAuthHref,
+  type GuestPrediction,
 } from "@/lib/guest-session";
 
 interface PredictionItem {
@@ -83,8 +86,24 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
 
       if (response.diseaseDetected) {
         markGuestChatCompleted();
-        setTopSpecialty(predictions[0]?.specialty);
+        const topSpec = predictions[0]?.specialty;
+        setTopSpecialty(topSpec);
         setIsLocked(true);
+
+        // Persist context so login/signup pages can carry it through
+        const ctx = {
+          guestSessionId,
+          specialty: topSpec,
+          predictions: predictions as GuestPrediction[],
+          symptoms: response.data.symptoms,
+          detectedAt: new Date().toISOString(),
+        };
+        saveGuestContext(ctx);
+
+        // Fire-and-forget snapshot to backend for later claim
+        saveGuestSnapshot(guestSessionId, predictions as GuestPrediction[], response.data.symptoms, topSpec).catch(
+          () => {}
+        );
       }
     } catch (err: unknown) {
       setMessages((prev) => [
@@ -275,14 +294,14 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
               </div>
               <div className="flex flex-col sm:flex-row gap-2 justify-center">
                 <Link
-                  href="/signup/patient"
+                  href={buildGuestAuthHref("/signup/patient")}
                   className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition-colors"
                 >
                   <UserPlus className="h-4 w-4" />
                   Create Account
                 </Link>
                 <Link
-                  href="/login"
+                  href={buildGuestAuthHref("/login")}
                   className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted/50 transition-colors"
                 >
                   <LogIn className="h-4 w-4" />

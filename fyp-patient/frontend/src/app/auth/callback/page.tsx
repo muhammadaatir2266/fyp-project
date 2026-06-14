@@ -3,9 +3,11 @@
 import { Suspense, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { setAuthToken, setCurrentUser } from "@/lib/auth";
+import { resolvePostAuthPath } from "@/lib/guest-handoff";
 
 const WEBSITE_URL =
   process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 function CallbackHandler() {
   const searchParams = useSearchParams();
@@ -18,21 +20,37 @@ function CallbackHandler() {
       return;
     }
 
-    // Strip the token from the URL immediately (security: don't leave it in history)
+    // Strip the token from the URL immediately
     window.history.replaceState({}, "", "/auth/callback");
 
     // Decode payload to get role for cookie
     try {
       const payload = JSON.parse(atob(token.split(".")[1]));
       setAuthToken(token);
-      // Store minimal user so middleware cookie is set
       setCurrentUser({ id: payload.userId, email: payload.email, role: payload.role });
     } catch {
       window.location.replace(`${WEBSITE_URL}/login`);
       return;
     }
 
-    window.location.replace("/patient/dashboard");
+    const guestSessionId = searchParams.get("guestSessionId");
+    const destination = resolvePostAuthPath(searchParams);
+
+    if (guestSessionId) {
+      // Claim guest predictions, then navigate regardless of outcome
+      fetch(`${API_URL}/chat/guest/claim`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ guestSessionId }),
+      })
+        .catch(() => {})
+        .finally(() => window.location.replace(destination));
+    } else {
+      window.location.replace(destination);
+    }
   }, [searchParams]);
 
   return (

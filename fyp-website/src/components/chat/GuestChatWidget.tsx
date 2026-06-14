@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, X, Bot, Stethoscope } from "lucide-react";
 import GuestChatInterface from "./GuestChatInterface";
 import { useGuestChatWidget } from "./GuestChatWidgetContext";
-import { isGuestChatCompleted } from "@/lib/guest-session";
+import { isGuestChatCompleted, buildGuestAuthHref } from "@/lib/guest-session";
 
 const PATIENT_APP_URL =
   process.env.NEXT_PUBLIC_PATIENT_APP_URL || "http://localhost:3000";
@@ -32,7 +32,12 @@ export function GuestChatWidget() {
   const handleOpen = () => {
     // If guest session was already completed, send to login instead of opening
     if (isGuestChatCompleted()) {
-      window.location.href = "/login?reason=guest_expired";
+      // buildGuestAuthHref reads stored context to append specialty param
+      const href = buildGuestAuthHref("/login");
+      // Add reason flag (may already have from=guest from buildGuestAuthHref)
+      const url = new URL(href, window.location.origin);
+      url.searchParams.set("reason", "guest_expired");
+      window.location.href = url.pathname + url.search;
       return;
     }
     openChat();

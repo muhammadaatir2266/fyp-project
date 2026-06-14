@@ -29,3 +29,16 @@ export async function sendGuestMessage(
 
   return res.json();
 }
+
+export async function saveGuestSnapshot(
+  guestSessionId: string,
+  predictions: Array<{ disease: string; confidence: number; specialty?: string }>,
+  symptoms?: string[],
+  specialty?: string
+): Promise<void> {
+  await fetch(`${AUTH_API_URL}/chat/guest/snapshot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ guestSessionId, predictions, symptoms, specialty }),
+  });
+}

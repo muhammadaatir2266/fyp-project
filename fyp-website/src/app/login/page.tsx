@@ -6,10 +6,17 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Sparkles, ArrowRight, Stethoscope } from "lucide-react";
 import { login, getRedirectUrl } from "@/lib/auth";
+import { getGuestContext, buildGuestAuthHref } from "@/lib/guest-session";
 
 function LoginForm() {
   const searchParams = useSearchParams();
-  const guestExpired = searchParams.get("reason") === "guest_expired";
+  const isGuestExpired = searchParams.get("reason") === "guest_expired";
+  const isFromGuest = searchParams.get("from") === "guest";
+  const showGuestBanner = isGuestExpired || isFromGuest;
+
+  // Prefer stored context; fall back to URL params for specialty
+  const urlSpecialty = searchParams.get("specialty") ?? undefined;
+  const urlGuestSessionId = searchParams.get("guestSessionId") ?? undefined;
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,7 +31,19 @@ function LoginForm() {
 
     try {
       const { token, user } = await login(email, password);
-      window.location.href = getRedirectUrl(user.role, token);
+
+      if (user.role === "PATIENT") {
+        // Read stored guest context (may have been set before navigation)
+        const ctx = getGuestContext();
+        const specialty = ctx?.specialty ?? urlSpecialty;
+        const guestSessionId = ctx?.guestSessionId ?? urlGuestSessionId;
+        const guestOpts = specialty || guestSessionId
+          ? { specialty, guestSessionId, redirect: "doctors" as const }
+          : undefined;
+        window.location.href = getRedirectUrl(user.role, token, guestOpts);
+      } else {
+        window.location.href = getRedirectUrl(user.role, token);
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Invalid email or password");
     } finally {
@@ -35,15 +54,17 @@ function LoginForm() {
   return (
     <div className="rounded-2xl border border-border/50 bg-card/60 backdrop-blur-sm shadow-2xl p-8">
       {/* Guest-expired banner */}
-      {guestExpired && (
+      {showGuestBanner && (
         <motion.div
           initial={{ opacity: 0, y: -8 }}
           animate={{ opacity: 1, y: 0 }}
           className="flex items-start gap-3 rounded-xl bg-primary/10 border border-primary/20 px-4 py-3 mb-6"
         >
-          <Stethoscope className="w-4 h-4 text-primary mt-0.5 flex-shrink-0" />
+          <Stethoscope className="w-4 h-4 text-primary mt-0.5 shrink-0" />
           <p className="text-sm text-primary font-medium">
-            Create an account or sign in to find a doctor and book an appointment based on your results.
+            {urlSpecialty
+              ? `Sign in to find a ${urlSpecialty} near you and book an appointment.`
+              : "Create an account or sign in to find a doctor and book an appointment based on your results."}
           </p>
         </motion.div>
       )}
@@ -67,7 +88,7 @@ function LoginForm() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-2.5 rounded-xl bg-destructive/10 border border-destructive/20 px-4 py-3 mb-6"
         >
-          <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+          <AlertCircle className="w-4 h-4 text-destructive shrink-0" />
           <p className="text-sm text-destructive font-medium">{error}</p>
         </motion.div>
       )}
@@ -142,7 +163,10 @@ function LoginForm() {
       {/* Footer */}
       <p className="text-center text-sm text-muted-foreground mt-6">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="text-primary font-semibold hover:text-accent transition-colors">
+        <Link
+          href={showGuestBanner ? buildGuestAuthHref("/signup/patient") : "/signup"}
+          className="text-primary font-semibold hover:text-accent transition-colors"
+        >
           Sign up
         </Link>
       </p>

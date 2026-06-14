@@ -258,6 +258,130 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
   }
 }
 
+const snapshotSchema = z.object({
+  guestSessionId: z.string().uuid(),
+  predictions: z.array(
+    z.object({
+      disease: z.string(),
+      confidence: z.number(),
+      specialty: z.string().optional(),
+    })
+  ),
+  symptoms: z.array(z.string()).optional(),
+  specialty: z.string().optional(),
+})
+
+const claimSchema = z.object({
+  guestSessionId: z.string().uuid(),
+})
+
+// Public — stores guest predictions for later claim (TTL 24 h)
+export const saveGuestSnapshot = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { guestSessionId, predictions, symptoms, specialty } = snapshotSchema.parse(req.body)
+
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 h
+
+    await prisma.guestChatSnapshot.upsert({
+      where: { guestSessionId },
+      create: { guestSessionId, predictions, symptoms: symptoms ?? [], specialty, expiresAt },
+      update: { predictions, symptoms: symptoms ?? [], specialty, expiresAt },
+    })
+
+    res.json({ success: true })
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors[0].message })
+    next(error)
+  }
+}
+
+// Authenticated — attaches snapshot to a real ChatSession + Prediction rows
+export const claimGuestSnapshot = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.user) throw new AppError('Authentication required', 401)
+    const { guestSessionId } = claimSchema.parse(req.body)
+
+    const snapshot = await prisma.guestChatSnapshot.findUnique({ where: { guestSessionId } })
+    if (!snapshot || snapshot.expiresAt < new Date()) {
+      // Nothing to claim — silently succeed so the client can proceed
+      res.json({ success: true, claimed: false })
+      return
+    }
+
+    const patient = await prisma.patient.findUnique({
+      where: { userId: req.user.userId },
+      select: { id: true },
+    })
+    if (!patient) throw new AppError('Patient not found', 404)
+
+    // Create a chat session to house the predictions
+    const session = await prisma.chatSession.create({
+      data: {
+        patientId: patient.id,
+        messages: {
+          create: {
+            role: 'assistant',
+            content: `Based on your earlier symptom analysis, possible conditions were identified. ${
+              snapshot.specialty ? `A ${snapshot.specialty} was recommended.` : ''
+            }`,
+          },
+        },
+      },
+    })
+
+    const rawPredictions = snapshot.predictions as Array<{
+      disease: string
+      confidence: number
+      specialty?: string
+    }>
+
+    for (const pred of rawPredictions) {
+      let specialtyId: string | undefined
+      if (pred.specialty) {
+        let sp = await prisma.specialty.findFirst({
+          where: { name: { equals: pred.specialty, mode: 'insensitive' } },
+        })
+        if (!sp) sp = await prisma.specialty.create({ data: { name: pred.specialty } })
+        specialtyId = sp.id
+      }
+
+      let disease = await prisma.disease.findUnique({ where: { name: pred.disease } })
+      if (!disease) {
+        disease = await prisma.disease.create({
+          data: {
+            name: pred.disease,
+            precautions: [],
+            ...(specialtyId && { recommendedSpecialtyId: specialtyId }),
+          },
+        })
+      } else if (specialtyId && !disease.recommendedSpecialtyId) {
+        disease = await prisma.disease.update({
+          where: { id: disease.id },
+          data: { recommendedSpecialtyId: specialtyId },
+        })
+      }
+
+      await prisma.prediction.create({
+        data: {
+          chatSessionId: session.id,
+          diseaseId: disease.id,
+          confidence: pred.confidence,
+          inputSymptoms: (snapshot.symptoms as string[]) ?? [],
+        },
+      })
+    }
+
+    // Delete snapshot so it can't be claimed again
+    await prisma.guestChatSnapshot.delete({ where: { guestSessionId } })
+
+    res.json({ success: true, claimed: true, sessionId: session.id })
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors[0].message })
+    if (error instanceof AppError) return res.status(error.statusCode).json({ error: error.message })
+    next(error)
+  }
+}
+
 export const getChatSessions = async (req: Request, res: Response, next: NextFunction) => {
   try {
     if (!req.user) throw new AppError('Authentication required', 401)
