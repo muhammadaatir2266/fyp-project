@@ -1,325 +1,54 @@
 "use client";
 
-import { motion } from "framer-motion";
-import Link from "next/link";
-import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Activity,
-  Mail,
-  Lock,
-  Eye,
-  EyeOff,
-  User,
-  ArrowRight,
-  Sparkles,
-  AlertCircle,
-  Stethoscope,
-} from "lucide-react";
-import { signup } from "@/lib/auth";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { resolvePostAuthPath } from "@/lib/guest-handoff";
+import { Suspense, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
-
-function SignupForm() {
-  const router = useRouter();
+function SignupRedirectInner() {
   const searchParams = useSearchParams();
-  const websiteUrl = process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003";
 
-  const fromGuest = searchParams.get("from") === "guest";
-  const specialty = searchParams.get("specialty") ?? undefined;
-  const guestSessionId = searchParams.get("guestSessionId") ?? undefined;
+  useEffect(() => {
+    const websiteUrl =
+      process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003";
 
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-    confirmPassword: "",
-  });
+    // Forward any guest params that may have been passed directly to this URL
+    const params = new URLSearchParams();
+    const from = searchParams.get("from");
+    const specialty = searchParams.get("specialty");
+    const guestSessionId = searchParams.get("guestSessionId");
+    if (from) params.set("from", from);
+    if (specialty) params.set("specialty", specialty);
+    if (guestSessionId) params.set("guestSessionId", guestSessionId);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-
-    if (formData.password !== formData.confirmPassword) {
-      setError("Passwords do not match");
-      return;
-    }
-
-    setIsLoading(true);
-
-    try {
-      const { token } = await signup({
-        email: formData.email,
-        password: formData.password,
-        firstName: formData.firstName,
-        lastName: formData.lastName,
-        role: "PATIENT",
-      });
-
-      // Claim guest predictions if we arrived from guest flow
-      if (guestSessionId && token) {
-        await fetch(`${API_URL}/chat/guest/claim`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ guestSessionId }),
-        }).catch(() => {});
-      }
-
-      // Build fake URLSearchParams to reuse resolvePostAuthPath
-      const fakeParams = new URLSearchParams();
-      if (fromGuest && specialty) {
-        fakeParams.set("redirect", "doctors");
-        fakeParams.set("specialty", specialty);
-      }
-      const destination = resolvePostAuthPath(fakeParams);
-      router.push(destination);
-    } catch (err: unknown) {
-      const e = err as { response?: { data?: { error?: string } } };
-      setError(e?.response?.data?.error || "Failed to create account");
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    const qs = params.toString();
+    window.location.replace(`${websiteUrl}/signup/patient${qs ? `?${qs}` : ""}`);
+  }, [searchParams]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 py-8 sm:py-12 relative overflow-hidden bg-background">
-      {/* Background Elements */}
-      <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="flex flex-col items-center gap-4">
+        <svg className="animate-spin w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+        </svg>
+        <p className="text-muted-foreground text-sm">Redirecting to signup…</p>
       </div>
-
-      {/* Logo */}
-      <Link
-        href={websiteUrl}
-        className="absolute top-4 sm:top-6 left-4 sm:left-6 flex items-center gap-2 sm:gap-3 z-50 group"
-      >
-        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-lg transition-transform group-hover:scale-105">
-          <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
-        </div>
-        <span className="text-base sm:text-lg font-bold text-foreground hidden sm:block">
-          Trimed Al
-        </span>
-      </Link>
-
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md relative z-10"
-      >
-        <Card className="border-border/50 shadow-2xl bg-card/50 backdrop-blur-sm">
-          <CardHeader className="space-y-1 text-center pb-8">
-            <div className="flex justify-center mb-4">
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
-                <Sparkles className="w-4 h-4" />
-                Get Started
-              </div>
-            </div>
-            <CardTitle className="text-2xl sm:text-3xl font-bold text-foreground">
-              Create Account
-            </CardTitle>
-            <CardDescription className="text-muted-foreground">
-              Start your journey to better health
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent>
-            {fromGuest && specialty && (
-              <div className="bg-primary/10 border border-primary/20 rounded-xl p-4 mb-6 flex items-start gap-3">
-                <Stethoscope className="w-4 h-4 text-primary mt-0.5 shrink-0" />
-                <p className="text-sm text-primary font-medium">
-                  Create your account to find a {specialty} near you and book an appointment.
-                </p>
-              </div>
-            )}
-
-            {error && (
-              <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-4 mb-6 flex items-center gap-3">
-                <AlertCircle className="w-5 h-5 text-destructive shrink-0" />
-                <p className="text-sm text-destructive font-medium">{error}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-foreground">
-                    First Name
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary/40">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <Input
-                      type="text"
-                      required
-                      value={formData.firstName}
-                      onChange={(e) =>
-                        setFormData({ ...formData, firstName: e.target.value })
-                      }
-                      className="pl-9 bg-background/50 border-primary/20 focus-visible:ring-primary text-primary placeholder:text-primary/40"
-                      placeholder="John"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-sm font-medium text-foreground">
-                    Last Name
-                  </label>
-                  <div className="relative">
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary/40">
-                      <User className="w-4 h-4" />
-                    </div>
-                    <Input
-                      type="text"
-                      required
-                      value={formData.lastName}
-                      onChange={(e) =>
-                        setFormData({ ...formData, lastName: e.target.value })
-                      }
-                      className="pl-9 bg-background/50 border-primary/20 focus-visible:ring-primary text-primary placeholder:text-primary/40"
-                      placeholder="Doe"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-foreground">
-                  Email Address
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary/40">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <Input
-                    type="email"
-                    required
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    className="pl-9 bg-background/50 border-primary/20 focus-visible:ring-primary text-primary placeholder:text-primary/40"
-                    placeholder="you@example.com"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-foreground">
-                  Password
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary/40">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <Input
-                    type={showPassword ? "text" : "password"}
-                    required
-                    value={formData.password}
-                    onChange={(e) =>
-                      setFormData({ ...formData, password: e.target.value })
-                    }
-                    className="pl-9 pr-10 bg-background/50 border-primary/20 focus-visible:ring-primary text-primary placeholder:text-primary/40"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-primary/40 hover:text-primary transition-colors"
-                  >
-                    {showPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <label className="block text-sm font-medium text-foreground">
-                  Confirm Password
-                </label>
-                <div className="relative">
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-primary/40">
-                    <Lock className="w-4 h-4" />
-                  </div>
-                  <Input
-                    type={showConfirmPassword ? "text" : "password"}
-                    required
-                    value={formData.confirmPassword}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        confirmPassword: e.target.value,
-                      })
-                    }
-                    className="pl-9 pr-10 bg-background/50 border-primary/20 focus-visible:ring-primary text-primary placeholder:text-primary/40"
-                    placeholder="••••••••"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-primary/40 hover:text-primary transition-colors"
-                  >
-                    {showConfirmPassword ? (
-                      <EyeOff className="w-4 h-4" />
-                    ) : (
-                      <Eye className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <Button
-                type="submit"
-                disabled={isLoading}
-                className="w-full h-12 text-base font-semibold shadow-lg shadow-primary/20 bg-linear-to-r from-primary to-secondary hover:opacity-90 transition-opacity mt-2"
-              >
-                {isLoading ? "Creating Account..." : "Create Account"}
-                <ArrowRight className="ml-2 w-4 h-4" />
-              </Button>
-            </form>
-          </CardContent>
-
-          <CardFooter className="justify-center pb-6">
-            <p className="text-center text-sm text-muted-foreground">
-              Already have an account?{" "}
-              <Link
-                href={`${process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003"}/login`}
-                className="text-primary hover:text-accent font-semibold transition-colors"
-              >
-                Sign in
-              </Link>
-            </p>
-          </CardFooter>
-        </Card>
-      </motion.div>
     </div>
   );
 }
 
 export default function SignupPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    }>
-      <SignupForm />
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <svg className="animate-spin w-8 h-8 text-primary" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+        </div>
+      }
+    >
+      <SignupRedirectInner />
     </Suspense>
   );
 }

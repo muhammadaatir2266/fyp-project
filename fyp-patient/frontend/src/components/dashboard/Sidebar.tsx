@@ -11,6 +11,7 @@ import {
   LogOut,
   Settings,
   MessageSquare,
+  Stethoscope,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +29,11 @@ const sidebarLinks = [
     title: "Overview",
     href: "/patient/dashboard",
     icon: LayoutDashboard,
+  },
+  {
+    title: "Find Doctors",
+    href: "/patient/doctors",
+    icon: Stethoscope,
   },
   {
     title: "Appointments",
@@ -116,7 +122,7 @@ export function Sidebar({ className }: { className?: string }) {
       </div>
 
       <div className="p-4 mt-auto space-y-4">
-        <Card className="bg-gradient-to-br from-primary/5 to-accent/5 border-primary/10 shadow-sm">
+        <Card className="bg-linear-to-br from-primary/5 to-accent/5 border-primary/10 shadow-sm">
           <CardHeader className="p-4 pb-2">
             <CardTitle className="text-sm">Need Help?</CardTitle>
             <CardDescription className="text-xs">

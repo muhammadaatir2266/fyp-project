@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { Send, Bot, User, Loader2, Stethoscope, LogIn, UserPlus, Lock } from "lucide-react";
+import { Send, Bot, User, Loader2, Stethoscope, LogIn, UserPlus, Lock, ArrowRight, CalendarCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { sendGuestMessage, saveGuestSnapshot } from "@/lib/guest-chat";
@@ -10,6 +10,7 @@ import {
   isGuestChatCompleted,
   markGuestChatCompleted,
   saveGuestContext,
+  getGuestContext,
   buildGuestAuthHref,
   type GuestPrediction,
 } from "@/lib/guest-session";
@@ -49,7 +50,29 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setGuestSessionId(getOrCreateGuestSessionId());
+    const id = getOrCreateGuestSessionId();
+    setGuestSessionId(id);
+
+    // If chat was already completed in a previous session, restore locked state
+    if (isGuestChatCompleted()) {
+      const ctx = getGuestContext();
+      if (ctx) {
+        setIsLocked(true);
+        setTopSpecialty(ctx.specialty);
+        // Show the previous predictions in-thread
+        if (ctx.predictions && ctx.predictions.length > 0) {
+          setMessages([
+            {
+              id: "restored",
+              role: "assistant",
+              content: "Welcome back! Here are your symptom analysis results from your last session.",
+              timestamp: new Date(ctx.detectedAt),
+              predictions: ctx.predictions,
+            },
+          ]);
+        }
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -90,7 +113,6 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
         setTopSpecialty(topSpec);
         setIsLocked(true);
 
-        // Persist context so login/signup pages can carry it through
         const ctx = {
           guestSessionId,
           specialty: topSpec,
@@ -100,7 +122,6 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
         };
         saveGuestContext(ctx);
 
-        // Fire-and-forget snapshot to backend for later claim
         saveGuestSnapshot(guestSessionId, predictions as GuestPrediction[], response.data.symptoms, topSpec).catch(
           () => {}
         );
@@ -132,7 +153,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* Header — hidden when inside the popup widget (popup chrome provides its own) */}
+      {/* Header — hidden inside popup widget */}
       {!embedded && (
         <div className="flex items-center gap-3 p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
@@ -150,7 +171,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
           </div>
           {!isLocked && (
             <Link
-              href="/login"
+              href={buildGuestAuthHref("/login")}
               className="ml-auto text-xs font-medium text-primary hover:text-accent transition-colors"
             >
               Sign in
@@ -279,30 +300,48 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
             <motion.div
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              className="rounded-2xl border border-border bg-card/60 backdrop-blur-sm p-5 text-center space-y-3"
+              className="rounded-2xl border border-primary/20 bg-primary/5 backdrop-blur-sm p-5 space-y-4"
             >
-              <div className="flex justify-center">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                  <Lock className="h-5 w-5 text-primary" />
+              <div className="flex items-center gap-3">
+                <div className="h-9 w-9 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Lock className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <p className="font-semibold text-foreground text-sm">
+                    {topSpecialty ? `Ready to find a ${topSpecialty}?` : "Ready to find a specialist?"}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Create your account to connect with verified doctors near you.
+                  </p>
                 </div>
               </div>
-              <div>
-                <p className="font-semibold text-foreground text-sm">Ready to find a specialist?</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Create an account or sign in to find{topSpecialty ? ` a ${topSpecialty}` : " a specialist"} near you and book an appointment.
-                </p>
+
+              {/* 3-step preview */}
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className="flex items-center gap-1 font-medium text-foreground">
+                  <UserPlus className="h-3 w-3 text-primary" /> Create account
+                </span>
+                <ArrowRight className="h-3 w-3 shrink-0" />
+                <span className="flex items-center gap-1">
+                  <Stethoscope className="h-3 w-3" /> See nearby doctors
+                </span>
+                <ArrowRight className="h-3 w-3 shrink-0" />
+                <span className="flex items-center gap-1">
+                  <CalendarCheck className="h-3 w-3" /> Book appointment
+                </span>
               </div>
-              <div className="flex flex-col sm:flex-row gap-2 justify-center">
+
+              <div className="flex flex-col sm:flex-row gap-2">
                 <Link
                   href={buildGuestAuthHref("/signup/patient")}
-                  className="flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground shadow-md shadow-primary/20 hover:bg-primary/90 transition-colors"
                 >
                   <UserPlus className="h-4 w-4" />
                   Create Account
                 </Link>
                 <Link
                   href={buildGuestAuthHref("/login")}
-                  className="flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted/50 transition-colors"
+                  className="flex-1 flex items-center justify-center gap-2 rounded-xl border border-border px-5 py-2.5 text-sm font-semibold text-foreground hover:bg-muted/50 transition-colors"
                 >
                   <LogIn className="h-4 w-4" />
                   Sign In

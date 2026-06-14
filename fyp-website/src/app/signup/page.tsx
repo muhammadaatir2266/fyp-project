@@ -1,20 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
-  Activity,
   ArrowRight,
   Sparkles,
   UserRound,
   ShieldCheck,
   ArrowLeft,
 } from "lucide-react";
+import { buildGuestAuthHref } from "@/lib/guest-session";
 
 export default function SignupSelectionPage() {
   const router = useRouter();
   const rootUrl = process.env.NEXT_PUBLIC_ROOT_URL || "/";
+  const [patientHref, setPatientHref] = useState("/signup/patient");
+
+  useEffect(() => {
+    // Carry guest context into the patient signup wizard if present
+    setPatientHref(buildGuestAuthHref("/signup/patient"));
+  }, []);
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 sm:px-6 py-8 sm:py-12 relative overflow-hidden bg-gradient-to-br from-teal-50/50 via-emerald-50/30 to-cyan-50/50">
@@ -70,7 +77,7 @@ export default function SignupSelectionPage() {
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.5, delay: 0.1 }}
           >
-            <Link href="/signup/patient" className="block group h-full">
+            <Link href={patientHref} className="block group h-full">
               <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 h-full border border-teal-100/50 hover:border-teal-300/50 hover:shadow-xl hover:shadow-teal-100/50 transition-all duration-300 flex flex-col items-center text-center">
                 <div className="w-16 h-16 rounded-xl bg-teal-100 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-300">
                   <UserRound className="w-8 h-8 text-teal-600" />

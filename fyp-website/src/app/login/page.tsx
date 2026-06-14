@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { motion } from "framer-motion";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Sparkles, ArrowRight, Stethoscope } from "lucide-react";
 import { login, getRedirectUrl } from "@/lib/auth";
-import { getGuestContext, buildGuestAuthHref } from "@/lib/guest-session";
+import { getGuestContext, buildGuestAuthHref, clearGuestContext } from "@/lib/guest-session";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -33,13 +33,14 @@ function LoginForm() {
       const { token, user } = await login(email, password);
 
       if (user.role === "PATIENT") {
-        // Read stored guest context (may have been set before navigation)
         const ctx = getGuestContext();
         const specialty = ctx?.specialty ?? urlSpecialty;
         const guestSessionId = ctx?.guestSessionId ?? urlGuestSessionId;
         const guestOpts = specialty || guestSessionId
           ? { specialty, guestSessionId, redirect: "doctors" as const }
           : undefined;
+        // Clear guest context before leaving — patient app takes over
+        clearGuestContext();
         window.location.href = getRedirectUrl(user.role, token, guestOpts);
       } else {
         window.location.href = getRedirectUrl(user.role, token);

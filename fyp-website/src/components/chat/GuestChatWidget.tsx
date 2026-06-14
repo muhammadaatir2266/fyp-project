@@ -5,10 +5,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { MessageSquare, X, Bot, Stethoscope } from "lucide-react";
 import GuestChatInterface from "./GuestChatInterface";
 import { useGuestChatWidget } from "./GuestChatWidgetContext";
-import { isGuestChatCompleted, buildGuestAuthHref } from "@/lib/guest-session";
-
-const PATIENT_APP_URL =
-  process.env.NEXT_PUBLIC_PATIENT_APP_URL || "http://localhost:3000";
 
 type AccessState = "checking" | "allowed" | "blocked";
 
@@ -30,16 +26,8 @@ export function GuestChatWidget() {
   if (access === "checking" || access === "blocked") return null;
 
   const handleOpen = () => {
-    // If guest session was already completed, send to login instead of opening
-    if (isGuestChatCompleted()) {
-      // buildGuestAuthHref reads stored context to append specialty param
-      const href = buildGuestAuthHref("/login");
-      // Add reason flag (may already have from=guest from buildGuestAuthHref)
-      const url = new URL(href, window.location.origin);
-      url.searchParams.set("reason", "guest_expired");
-      window.location.href = url.pathname + url.search;
-      return;
-    }
+    // If chat was already completed, open the popup — GuestChatInterface will
+    // restore the locked state with previous predictions so the user sees CTAs.
     openChat();
   };
 

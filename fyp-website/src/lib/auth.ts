@@ -35,6 +35,35 @@ export const login = async (
   return res.json();
 };
 
+export interface PatientSignupData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  city?: string;
+  address?: string;
+  medicalHistory?: string;
+  allergies?: string;
+}
+
+export const signupPatient = async (data: PatientSignupData): Promise<LoginResponse> => {
+  const res = await fetch(`${AUTH_API_URL}/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...data, role: "PATIENT" }),
+  });
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error || "Signup failed. Please try again.");
+  }
+
+  return res.json();
+};
+
 export interface GuestRedirectOpts {
   specialty?: string;
   guestSessionId?: string;

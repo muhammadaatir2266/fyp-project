@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { prisma } from "../lib/prisma";
 import { generateToken } from "../lib/jwt";
 import { AppError } from "../middleware/error.middleware";
+import { cityCentroid } from "../lib/geocode";
 import { z } from "zod";
 
 const loginSchema = z.object({
@@ -18,6 +19,10 @@ const signupSchema = z.object({
   phone: z.string().optional(),
   dateOfBirth: z.string().optional(),
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
+  city: z.string().optional(),
+  address: z.string().optional(),
+  medicalHistory: z.string().optional(),
+  allergies: z.string().optional(),
 });
 
 // Unified login — handles PATIENT, DOCTOR, and ADMIN roles so the
@@ -116,6 +121,8 @@ export const signup = async (req: Request, res: Response, next: NextFunction) =>
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
+    const coords = data.city ? cityCentroid(data.city) : null;
+
     const user = await prisma.user.create({
       data: {
         email: data.email,
@@ -128,6 +135,11 @@ export const signup = async (req: Request, res: Response, next: NextFunction) =>
             phone: data.phone,
             dateOfBirth: data.dateOfBirth ? new Date(data.dateOfBirth) : null,
             gender: data.gender,
+            city: data.city,
+            address: data.address,
+            medicalHistory: data.medicalHistory,
+            allergies: data.allergies,
+            ...(coords ? { latitude: coords.lat, longitude: coords.lng } : {}),
           },
         },
       },
