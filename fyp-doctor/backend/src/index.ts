@@ -1,7 +1,6 @@
 import 'dotenv/config'
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
-import path from 'path'
 
 import authRoutes from './routes/auth.routes'
 import doctorRoutes from './routes/doctor.routes'
@@ -18,8 +17,6 @@ app.use(
 )
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
-
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')))
 
 app.use('/api/auth', authRoutes)
 app.use('/api/doctor', doctorRoutes)

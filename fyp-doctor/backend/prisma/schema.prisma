@@ -204,10 +204,32 @@ model Doctor {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  appointments      Appointment[]
-  callLogs          CallLog[]
-  reviews           DoctorReview[]
-  callBookingIntents CallBookingIntent[]
+  appointments           Appointment[]
+  callLogs               CallLog[]
+  reviews                DoctorReview[]
+  callBookingIntents     CallBookingIntent[]
+  verificationDocuments  DoctorVerificationDocument[]
+}
+
+enum VerificationDocumentType {
+  MEDICAL_LICENSE
+  DEGREE_CERTIFICATE
+  GOVERNMENT_ID
+  OTHER
+}
+
+model DoctorVerificationDocument {
+  id        String                   @id @default(uuid())
+  doctorId  String
+  doctor    Doctor                   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  type      VerificationDocumentType
+  s3Key     String
+  fileName  String
+  mimeType  String
+  fileSize  Int
+  createdAt DateTime                 @default(now())
+
+  @@index([doctorId])
 }
 
 model Specialty {

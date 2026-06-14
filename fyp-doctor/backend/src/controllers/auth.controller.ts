@@ -1,123 +1,197 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
-import multer from 'multer'
+import { z } from 'zod'
+import crypto from 'crypto'
 import path from 'path'
-import fs from 'fs'
 import prisma from '../config/database'
 import { generateToken } from '../lib/jwt'
 import { cityCentroid } from '../lib/geocode'
+import { getPresignedPutUrl, headObject, deleteObject, isR2Key } from '../lib/r2'
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => {
-    const uploadDir = path.join(__dirname, '../../uploads/verification-documents')
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true })
-    }
-    cb(null, uploadDir)
-  },
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9)
-    cb(null, 'doc-' + uniqueSuffix + path.extname(file.originalname))
-  },
+const ALLOWED_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png']
+const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5 MB
+
+const presignSchema = z.object({
+  uploadSessionId: z.string().uuid('uploadSessionId must be a valid UUID'),
+  documentType: z.enum(['MEDICAL_LICENSE', 'DEGREE_CERTIFICATE', 'GOVERNMENT_ID', 'OTHER']),
+  fileName: z.string().min(1),
+  mimeType: z.string().refine((m) => ALLOWED_MIME_TYPES.includes(m), {
+    message: 'Only PDF, JPG, and PNG files are allowed',
+  }),
+  fileSize: z.number().max(MAX_FILE_SIZE, 'File size must be less than 5 MB'),
 })
 
-const upload = multer({
-  storage,
-  limits: { fileSize: 5 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowedTypes = /pdf|jpg|jpeg|png/
-    const extname = allowedTypes.test(path.extname(file.originalname).toLowerCase())
-    const mimetype = allowedTypes.test(file.mimetype)
-    if (extname && mimetype) {
-      cb(null, true)
-    } else {
-      cb(new Error('Only PDF, JPG, and PNG files are allowed'))
-    }
-  },
-}).single('verificationDocument')
+const documentItemSchema = z.object({
+  type: z.enum(['MEDICAL_LICENSE', 'DEGREE_CERTIFICATE', 'GOVERNMENT_ID', 'OTHER']),
+  s3Key: z.string().min(1),
+  fileName: z.string().min(1),
+  mimeType: z.string(),
+  fileSize: z.number(),
+})
 
-export const signup = (req: Request, res: Response): void => {
-  upload(req, res, async (err) => {
-    if (err) {
-      res.status(400).json({ message: (err as Error).message })
+const signupSchema = z.object({
+  firstName: z.string().min(1),
+  lastName: z.string().min(1),
+  email: z.string().email(),
+  password: z.string().min(6),
+  phone: z.string().min(1),
+  specialtyId: z.string().uuid('specialtyId must be a valid UUID'),
+  licenseNumber: z.string().min(1),
+  clinicLocation: z.string().optional(),
+  address: z.string().min(1),
+  city: z.string().min(1),
+  experience: z.number().int().min(0).default(0),
+  qualifications: z.string().optional(),
+  consultationFee: z.number().positive().optional(),
+  gender: z.enum(['MALE', 'FEMALE', 'OTHER']).optional(),
+  languages: z.array(z.string()).default([]),
+  workingDays: z.array(z.string()).default([]),
+  availableFrom: z.string().optional(),
+  availableTo: z.string().optional(),
+  uploadSessionId: z.string().uuid(),
+  documents: z.array(documentItemSchema).min(1, 'At least one verification document is required'),
+})
+
+// GET /auth/specialties
+export const getSpecialties = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const specialties = await prisma.specialty.findMany({ orderBy: { name: 'asc' } })
+    res.json({ specialties })
+  } catch (error) {
+    console.error('Get specialties error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
+// POST /auth/documents/presign
+export const presignDocument = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { uploadSessionId, documentType, fileName, mimeType, fileSize } = presignSchema.parse(req.body)
+
+    const ext = path.extname(fileName) || (mimeType === 'application/pdf' ? '.pdf' : '.jpg')
+    const key = `pending/${uploadSessionId}/${documentType}/${crypto.randomUUID()}${ext}`
+
+    const uploadUrl = await getPresignedPutUrl(key, mimeType, 300)
+
+    res.json({ uploadUrl, s3Key: key })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ message: error.issues[0].message })
+      return
+    }
+    console.error('Presign error:', error)
+    res.status(500).json({ message: 'Failed to generate upload URL' })
+  }
+}
+
+// POST /auth/signup
+export const signup = async (req: Request, res: Response): Promise<void> => {
+  let parsedDocuments: z.infer<typeof documentItemSchema>[] = []
+
+  try {
+    const data = signupSchema.parse(req.body)
+    parsedDocuments = data.documents
+
+    const existingUser = await prisma.user.findUnique({ where: { email: data.email } })
+    if (existingUser) {
+      res.status(400).json({ message: 'Email already registered' })
       return
     }
 
-    try {
-      const { firstName, lastName, email, password, phone, specialization, licenseNumber, clinicLocation, address, city, gender, languages } =
-        req.body as Record<string, string>
+    const specialty = await prisma.specialty.findUnique({ where: { id: data.specialtyId } })
+    if (!specialty) {
+      res.status(400).json({ message: 'Selected specialty not found' })
+      return
+    }
 
-      if (!req.file) {
-        res.status(400).json({ message: 'Verification document is required' })
+    // Verify all documents exist in R2 under the expected session prefix
+    const sessionPrefix = `pending/${data.uploadSessionId}/`
+    for (const doc of data.documents) {
+      if (!doc.s3Key.startsWith(sessionPrefix)) {
+        res.status(400).json({ message: `Document key ${doc.s3Key} does not belong to this upload session` })
         return
       }
-
-      const existingUser = await prisma.user.findUnique({ where: { email } })
-
-      if (existingUser) {
-        fs.unlinkSync(req.file.path)
-        res.status(400).json({ message: 'Email already registered' })
+      const exists = await headObject(doc.s3Key)
+      if (!exists) {
+        res.status(400).json({ message: `Document ${doc.fileName} was not uploaded successfully. Please re-upload.` })
         return
       }
+    }
 
-      const hashedPassword = await bcrypt.hash(password, 10)
+    const hashedPassword = await bcrypt.hash(data.password, 10)
+    const primaryDoc = data.documents.find((d) => d.type === 'MEDICAL_LICENSE') ?? data.documents[0]
 
-      let specialty = await prisma.specialty.findFirst({ where: { name: specialization } })
-
-      if (!specialty) {
-        specialty = await prisma.specialty.create({ data: { name: specialization } })
-      }
-
-      const user = await prisma.user.create({
-        data: {
-          email,
-          password: hashedPassword,
-          role: 'DOCTOR',
-          doctor: {
-            create: {
-              firstName,
-              lastName,
-              phone,
-              specialtyId: specialty.id,
-              licenseNumber,
-              clinicLocation,
-              address,
-              city,
-              ...(cityCentroid(city) ?? {}),
-              ...(gender && { gender: gender as any }),
-              ...(languages && { languages: JSON.parse(languages) }),
-              verificationDocument: `/uploads/verification-documents/${req.file.filename}`,
-              verificationStatus: 'PENDING',
-              isActive: false,
-              isVerified: false,
+    const user = await prisma.user.create({
+      data: {
+        email: data.email,
+        password: hashedPassword,
+        role: 'DOCTOR',
+        doctor: {
+          create: {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            phone: data.phone,
+            specialtyId: specialty.id,
+            licenseNumber: data.licenseNumber,
+            clinicLocation: data.clinicLocation,
+            address: data.address,
+            city: data.city,
+            ...(cityCentroid(data.city) ?? {}),
+            experience: data.experience,
+            qualifications: data.qualifications,
+            consultationFee: data.consultationFee,
+            ...(data.gender && { gender: data.gender }),
+            languages: data.languages,
+            workingDays: data.workingDays,
+            availableFrom: data.availableFrom,
+            availableTo: data.availableTo,
+            // Keep legacy field for backward compat with existing admin views
+            verificationDocument: primaryDoc.s3Key,
+            verificationStatus: 'PENDING',
+            isActive: false,
+            isVerified: false,
+            verificationDocuments: {
+              create: data.documents.map((doc) => ({
+                type: doc.type,
+                s3Key: doc.s3Key,
+                fileName: doc.fileName,
+                mimeType: doc.mimeType,
+                fileSize: doc.fileSize,
+              })),
             },
           },
         },
-        include: {
-          doctor: {
-            include: { specialty: true },
-          },
-        },
-      })
+      },
+      include: {
+        doctor: { include: { specialty: true, verificationDocuments: true } },
+      },
+    })
 
-      res.status(201).json({
-        message: 'Application submitted successfully. Please wait for admin approval.',
-        user: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          doctor: {
-            ...user.doctor,
-            verificationStatus: user.doctor?.verificationStatus,
-          },
+    res.status(201).json({
+      message: 'Application submitted successfully. Please wait for admin approval.',
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        doctor: {
+          id: user.doctor?.id,
+          verificationStatus: user.doctor?.verificationStatus,
+          specialty: user.doctor?.specialty,
         },
-      })
-    } catch (error) {
-      console.error('Signup error:', error)
-      if (req.file) fs.unlinkSync(req.file.path)
-      res.status(500).json({ message: 'Server error' })
+      },
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      res.status(400).json({ message: error.issues[0].message })
+      return
     }
-  })
+    console.error('Signup error:', error)
+    // Best-effort cleanup of uploaded R2 objects
+    if (parsedDocuments.length > 0) {
+      await Promise.allSettled(parsedDocuments.map((d) => deleteObject(d.s3Key)))
+    }
+    res.status(500).json({ message: 'Server error during registration' })
+  }
 }
 
 export const login = async (req: Request, res: Response): Promise<void> => {
@@ -150,7 +224,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     }
 
     const isPasswordValid = await bcrypt.compare(password, user.password)
-
     if (!isPasswordValid) {
       res.status(401).json({ message: 'Invalid credentials' })
       return
@@ -174,7 +247,6 @@ export const getMe = async (req: Request, res: Response): Promise<void> => {
       where: { id: req.user!.userId },
       include: { doctor: { include: { specialty: true } } },
     })
-
     res.json(user)
   } catch (error) {
     console.error('Get me error:', error)

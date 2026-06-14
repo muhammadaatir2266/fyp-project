@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -51,6 +51,159 @@ interface Doctor {
   _count: {
     appointments: number;
   };
+}
+
+interface VerificationDocument {
+  id: string;
+  type: 'MEDICAL_LICENSE' | 'DEGREE_CERTIFICATE' | 'GOVERNMENT_ID' | 'OTHER';
+  fileName: string;
+  mimeType: string;
+  fileSize: number;
+  createdAt: string;
+}
+
+const DOC_TYPE_LABELS: Record<string, string> = {
+  MEDICAL_LICENSE: 'Medical License',
+  DEGREE_CERTIFICATE: 'Degree Certificate',
+  GOVERNMENT_ID: 'Government ID',
+  OTHER: 'Other',
+};
+
+function DocumentsModal({
+  doctorId,
+  doctorName,
+  legacyDocPath,
+  onClose,
+}: {
+  doctorId: string;
+  doctorName: string;
+  legacyDocPath?: string;
+  onClose: () => void;
+}) {
+  const [docs, setDocs] = useState<VerificationDocument[]>([]);
+  const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
+  const fetchDocs = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_URL}/admin/doctors/${doctorId}/documents`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setDocs(data.documents ?? []);
+      }
+    } catch {
+      // ignore — fall back to legacy
+    } finally {
+      setLoading(false);
+    }
+  }, [API_URL, doctorId]);
+
+  useEffect(() => { fetchDocs(); }, [fetchDocs]);
+
+  const openDoc = useCallback(async (docId: string) => {
+    setActiveDocId(docId);
+    setFrameUrl(null);
+    try {
+      const res = await fetch(`${API_URL}/admin/doctors/${doctorId}/documents/${docId}/url`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        setFrameUrl(url);
+      }
+    } catch {
+      // ignore
+    }
+  }, [API_URL, doctorId]);
+
+  // Open first doc automatically once loaded
+  useEffect(() => {
+    if (docs.length > 0 && !activeDocId) {
+      openDoc(docs[0].id);
+    }
+  }, [docs, activeDocId, openDoc]);
+
+  const legacyUrl = legacyDocPath
+    ? `${API_URL}/admin/doctors/${doctorId}/verification-document`
+    : null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <motion.div
+        initial={{ opacity: 0, scale: 0.9 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col"
+      >
+        <div className="flex justify-between items-center p-5 border-b">
+          <h3 className="text-xl font-bold text-gray-900">
+            Verification Documents — Dr. {doctorName}
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="h-6 w-6" />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex-1 flex items-center justify-center text-gray-500 py-16">
+            Loading documents…
+          </div>
+        ) : docs.length === 0 && !legacyUrl ? (
+          <div className="flex-1 flex items-center justify-center text-gray-400 py-16">
+            No documents found
+          </div>
+        ) : (
+          <div className="flex flex-1 overflow-hidden">
+            {/* Sidebar */}
+            <div className="w-52 shrink-0 border-r p-3 overflow-y-auto space-y-1">
+              {docs.map((doc) => (
+                <button
+                  key={doc.id}
+                  onClick={() => openDoc(doc.id)}
+                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                    activeDocId === doc.id
+                      ? 'bg-teal-50 text-teal-700 font-semibold'
+                      : 'text-gray-700 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="font-medium">{DOC_TYPE_LABELS[doc.type]}</div>
+                  <div className="text-xs text-gray-400 truncate">{doc.fileName}</div>
+                </button>
+              ))}
+              {docs.length === 0 && legacyUrl && (
+                <button
+                  onClick={() => setFrameUrl(legacyUrl)}
+                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm bg-teal-50 text-teal-700 font-semibold"
+                >
+                  Medical License
+                </button>
+              )}
+            </div>
+
+            {/* Viewer */}
+            <div className="flex-1 overflow-hidden bg-gray-50">
+              {frameUrl ? (
+                <iframe
+                  key={frameUrl}
+                  src={frameUrl}
+                  className="w-full h-full border-0"
+                  title="Document Viewer"
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
+                  {activeDocId ? 'Loading document…' : 'Select a document'}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </motion.div>
+    </div>
+  );
 }
 
 export default function DoctorsPage() {
@@ -152,21 +305,21 @@ export default function DoctorsPage() {
     switch (status) {
       case 'PENDING':
         return (
-          <Badge className="bg-gradient-to-r from-yellow-500 to-amber-500 text-white border-0 px-3 py-1.5 font-semibold shadow-md">
+          <Badge className="bg-linear-to-r from-yellow-500 to-amber-500 text-white border-0 px-3 py-1.5 font-semibold shadow-md">
             <Clock className="w-3.5 h-3.5 mr-1.5" />
             Pending
           </Badge>
         );
       case 'APPROVED':
         return (
-          <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 text-white border-0 px-3 py-1.5 font-semibold shadow-md">
+          <Badge className="bg-linear-to-r from-green-500 to-emerald-500 text-white border-0 px-3 py-1.5 font-semibold shadow-md">
             <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
             Approved
           </Badge>
         );
       case 'REJECTED':
         return (
-          <Badge className="bg-gradient-to-r from-red-500 to-rose-500 text-white border-0 px-3 py-1.5 font-semibold shadow-md">
+          <Badge className="bg-linear-to-r from-red-500 to-rose-500 text-white border-0 px-3 py-1.5 font-semibold shadow-md">
             <XCircle className="w-3.5 h-3.5 mr-1.5" />
             Rejected
           </Badge>
@@ -197,7 +350,7 @@ export default function DoctorsPage() {
         className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4"
       >
         <div>
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
+          <h1 className="text-4xl font-bold bg-linear-to-r from-teal-600 to-emerald-600 bg-clip-text text-transparent">
             Doctors Management
           </h1>
           <p className="text-gray-600 mt-2">Manage doctor profiles and verification</p>
@@ -239,7 +392,7 @@ export default function DoctorsPage() {
                       variant={verificationFilter === status ? 'default' : 'outline'}
                       size="sm"
                       onClick={() => setVerificationFilter(status)}
-                      className={verificationFilter === status ? 'bg-gradient-to-r from-teal-600 to-emerald-600' : ''}
+                      className={verificationFilter === status ? 'bg-linear-to-r from-teal-600 to-emerald-600' : ''}
                     >
                       {status === 'all' ? 'All' : status}
                     </Button>
@@ -275,10 +428,10 @@ export default function DoctorsPage() {
                   <CardContent className="p-0">
                     <div className="flex flex-col lg:flex-row items-stretch lg:items-center">
                       {/* Status Indicator */}
-                      <div className={`w-full lg:w-2 h-2 lg:h-24 flex-shrink-0 ${
-                        doctor.verificationStatus === 'PENDING' ? 'bg-gradient-to-r lg:bg-gradient-to-b from-yellow-400 to-amber-500' :
-                        doctor.verificationStatus === 'APPROVED' ? 'bg-gradient-to-r lg:bg-gradient-to-b from-green-400 to-emerald-500' :
-                        'bg-gradient-to-r lg:bg-gradient-to-b from-red-400 to-rose-500'
+                      <div className={`w-full lg:w-2 h-2 lg:h-24 shrink-0 ${
+                        doctor.verificationStatus === 'PENDING' ? 'bg-linear-to-r lg:bg-linear-to-b from-yellow-400 to-amber-500' :
+                        doctor.verificationStatus === 'APPROVED' ? 'bg-linear-to-r lg:bg-linear-to-b from-green-400 to-emerald-500' :
+                        'bg-linear-to-r lg:bg-linear-to-b from-red-400 to-rose-500'
                       }`}></div>
 
                       {/* Doctor Info */}
@@ -307,17 +460,17 @@ export default function DoctorsPage() {
                           {/* Contact - Hidden on mobile */}
                           <div className="hidden xl:flex flex-col gap-1 text-sm text-gray-600 min-w-[200px]">
                             <div className="flex items-center gap-2">
-                              <Mail className="h-3.5 w-3.5 flex-shrink-0" />
+                              <Mail className="h-3.5 w-3.5 shrink-0" />
                               <span className="truncate">{doctor.user.email}</span>
                             </div>
                             <div className="flex items-center gap-2">
-                              <Phone className="h-3.5 w-3.5 flex-shrink-0" />
+                              <Phone className="h-3.5 w-3.5 shrink-0" />
                               <span>{doctor.phone}</span>
                             </div>
                           </div>
 
                           {/* Status Badge */}
-                          <div className="flex-shrink-0">
+                          <div className="shrink-0">
                             {getVerificationBadge(doctor.verificationStatus)}
                           </div>
 
@@ -337,7 +490,7 @@ export default function DoctorsPage() {
                               <>
                                 <Button
                                   size="sm"
-                                  className="bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white flex-1 lg:flex-initial"
+                                  className="bg-linear-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white flex-1 lg:flex-initial"
                                   onClick={() => {
                                     setSelectedDoctor(doctor);
                                     setShowApproveDialog(true);
@@ -500,34 +653,13 @@ export default function DoctorsPage() {
       )}
 
       {/* Document Modal */}
-      {showDocumentModal && selectedDoctor && selectedDoctor.verificationDocument && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="bg-white rounded-lg p-6 max-w-4xl w-full max-h-[90vh] overflow-auto"
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-xl font-bold">Verification Document</h3>
-              <button
-                onClick={() => {
-                  setShowDocumentModal(false);
-                  setSelectedDoctor(null);
-                }}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-6 w-6" />
-              </button>
-            </div>
-            <div className="bg-gray-100 rounded-lg p-4 min-h-[400px] flex items-center justify-center">
-              <iframe
-                src={`${process.env.NEXT_PUBLIC_API_URL}/admin/doctors/${selectedDoctor.id}/verification-document`}
-                className="w-full h-[600px] border-0"
-                title="Verification Document"
-              />
-            </div>
-          </motion.div>
-        </div>
+      {showDocumentModal && selectedDoctor && (
+        <DocumentsModal
+          doctorId={selectedDoctor.id}
+          doctorName={`${selectedDoctor.firstName} ${selectedDoctor.lastName}`}
+          legacyDocPath={selectedDoctor.verificationDocument}
+          onClose={() => { setShowDocumentModal(false); setSelectedDoctor(null); }}
+        />
       )}
 
       {/* Doctor Details Modal */}
@@ -539,7 +671,7 @@ export default function DoctorsPage() {
             className="bg-white rounded-xl shadow-2xl max-w-4xl w-full my-8"
           >
             {/* Header */}
-            <div className="bg-gradient-to-r from-teal-600 to-emerald-600 p-6 rounded-t-xl">
+            <div className="bg-linear-to-r from-teal-600 to-emerald-600 p-6 rounded-t-xl">
               <div className="flex justify-between items-start">
                 <div className="text-white">
                   <h2 className="text-2xl font-bold mb-2">Dr. {selectedDoctor.firstName} {selectedDoctor.lastName}</h2>
@@ -571,7 +703,7 @@ export default function DoctorsPage() {
                   
                   <div className="space-y-3">
                     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Mail className="h-5 w-5 text-teal-600 mt-0.5 flex-shrink-0" />
+                      <Mail className="h-5 w-5 text-teal-600 mt-0.5 shrink-0" />
                       <div>
                         <div className="text-xs font-medium text-gray-500 mb-1">Email</div>
                         <div className="text-sm font-semibold text-gray-900">{selectedDoctor.user.email}</div>
@@ -579,7 +711,7 @@ export default function DoctorsPage() {
                     </div>
 
                     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Phone className="h-5 w-5 text-teal-600 mt-0.5 flex-shrink-0" />
+                      <Phone className="h-5 w-5 text-teal-600 mt-0.5 shrink-0" />
                       <div>
                         <div className="text-xs font-medium text-gray-500 mb-1">Phone</div>
                         <div className="text-sm font-semibold text-gray-900">{selectedDoctor.phone}</div>
@@ -587,7 +719,7 @@ export default function DoctorsPage() {
                     </div>
 
                     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                      <MapPin className="h-5 w-5 text-teal-600 mt-0.5 flex-shrink-0" />
+                      <MapPin className="h-5 w-5 text-teal-600 mt-0.5 shrink-0" />
                       <div>
                         <div className="text-xs font-medium text-gray-500 mb-1">City</div>
                         <div className="text-sm font-semibold text-gray-900">{selectedDoctor.city}</div>
@@ -603,7 +735,7 @@ export default function DoctorsPage() {
                   <div className="space-y-3">
                     {selectedDoctor.licenseNumber && (
                       <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                        <FileText className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <FileText className="h-5 w-5 text-blue-600 mt-0.5 shrink-0" />
                         <div>
                           <div className="text-xs font-medium text-blue-700 mb-1">License Number</div>
                           <div className="text-sm font-semibold text-blue-900">{selectedDoctor.licenseNumber}</div>
@@ -613,7 +745,7 @@ export default function DoctorsPage() {
 
                     {selectedDoctor.clinicLocation && (
                       <div className="flex items-start gap-3 p-3 bg-purple-50 rounded-lg border border-purple-200">
-                        <MapPin className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                        <MapPin className="h-5 w-5 text-purple-600 mt-0.5 shrink-0" />
                         <div>
                           <div className="text-xs font-medium text-purple-700 mb-1">Clinic Location</div>
                           <div className="text-sm font-semibold text-purple-900">{selectedDoctor.clinicLocation}</div>
@@ -622,7 +754,7 @@ export default function DoctorsPage() {
                     )}
 
                     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Briefcase className="h-5 w-5 text-teal-600 mt-0.5 flex-shrink-0" />
+                      <Briefcase className="h-5 w-5 text-teal-600 mt-0.5 shrink-0" />
                       <div>
                         <div className="text-xs font-medium text-gray-500 mb-1">Experience</div>
                         <div className="text-sm font-semibold text-gray-900">{selectedDoctor.experience} years</div>
@@ -630,7 +762,7 @@ export default function DoctorsPage() {
                     </div>
 
                     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                      <DollarSign className="h-5 w-5 text-teal-600 mt-0.5 flex-shrink-0" />
+                      <DollarSign className="h-5 w-5 text-teal-600 mt-0.5 shrink-0" />
                       <div>
                         <div className="text-xs font-medium text-gray-500 mb-1">Consultation Fee</div>
                         <div className="text-sm font-semibold text-gray-900">${selectedDoctor.consultationFee}</div>
@@ -638,7 +770,7 @@ export default function DoctorsPage() {
                     </div>
 
                     <div className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                      <Star className="h-5 w-5 text-amber-500 mt-0.5 flex-shrink-0 fill-amber-500" />
+                      <Star className="h-5 w-5 text-amber-500 mt-0.5 shrink-0 fill-amber-500" />
                       <div>
                         <div className="text-xs font-medium text-gray-500 mb-1">Rating</div>
                         <div className="text-sm font-semibold text-gray-900">{selectedDoctor.rating.toFixed(1)} / 5.0</div>
@@ -679,7 +811,7 @@ export default function DoctorsPage() {
               {selectedDoctor.verificationStatus === 'PENDING' && (
                 <>
                   <Button
-                    className="flex-1 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
+                    className="flex-1 bg-linear-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold"
                     onClick={() => {
                       setShowDetailsModal(false);
                       setShowApproveDialog(true);

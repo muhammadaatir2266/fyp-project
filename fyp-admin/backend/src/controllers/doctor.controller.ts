@@ -4,6 +4,7 @@ import path from 'path'
 import fs from 'fs'
 import { DoctorVerificationStatus } from '@prisma/client'
 import prisma from '../config/database'
+import { getPresignedGetUrl, isR2Key } from '../lib/r2'
 
 export const getDoctors = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -262,7 +263,17 @@ export const getVerificationDocument = async (req: Request, res: Response): Prom
       return
     }
 
-    const filePath = path.join(__dirname, '../..', doctor.verificationDocument)
+    const docPath = doctor.verificationDocument
+
+    // R2 key — generate a presigned URL and redirect
+    if (isR2Key(docPath)) {
+      const url = await getPresignedGetUrl(docPath, 900)
+      res.redirect(url)
+      return
+    }
+
+    // Legacy local path
+    const filePath = path.join(__dirname, '../..', docPath)
     const normalizedPath = path.normalize(filePath)
     const uploadsDir = path.join(__dirname, '../..', 'uploads')
 
@@ -272,13 +283,47 @@ export const getVerificationDocument = async (req: Request, res: Response): Prom
     }
 
     if (!fs.existsSync(normalizedPath)) {
-      res.status(404).json({ message: 'Document file not found' })
+      res.status(404).json({ message: 'Document file not found on disk' })
       return
     }
 
     res.sendFile(normalizedPath)
   } catch (error) {
     console.error('Get verification document error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
+// GET /admin/doctors/:id/documents
+export const getDoctorDocuments = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string
+    const documents = await prisma.doctorVerificationDocument.findMany({
+      where: { doctorId: id },
+      orderBy: { createdAt: 'asc' },
+    })
+    res.json({ documents })
+  } catch (error) {
+    console.error('Get doctor documents error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
+// GET /admin/doctors/:id/documents/:docId/url
+export const getDoctorDocumentUrl = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { id, docId } = req.params as { id: string; docId: string }
+    const doc = await prisma.doctorVerificationDocument.findFirst({
+      where: { id: docId, doctorId: id },
+    })
+    if (!doc) {
+      res.status(404).json({ message: 'Document not found' })
+      return
+    }
+    const url = await getPresignedGetUrl(doc.s3Key, 900)
+    res.json({ url, fileName: doc.fileName, mimeType: doc.mimeType })
+  } catch (error) {
+    console.error('Get doctor document URL error:', error)
     res.status(500).json({ message: 'Server error' })
   }
 }

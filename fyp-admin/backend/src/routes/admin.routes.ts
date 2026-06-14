@@ -24,6 +24,8 @@ router.patch('/doctors/:id/toggle-status', doctorController.toggleDoctorStatus)
 router.post('/doctors/:id/approve', doctorController.approveDoctor)
 router.post('/doctors/:id/reject', doctorController.rejectDoctor)
 router.get('/doctors/:id/verification-document', doctorController.getVerificationDocument)
+router.get('/doctors/:id/documents', doctorController.getDoctorDocuments)
+router.get('/doctors/:id/documents/:docId/url', doctorController.getDoctorDocumentUrl)
 
 // Appointments
 router.get('/appointments', appointmentController.getAppointments)
