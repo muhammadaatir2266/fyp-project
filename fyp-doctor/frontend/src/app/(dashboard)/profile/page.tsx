@@ -60,7 +60,7 @@ export default function ProfilePage() {
     }
   };
 
-  const handleChange = (field: string, value: string | number) => {
+  const handleChange = (field: string, value: string | number | string[]) => {
     setProfile((prev) => ({ ...prev, [field]: value }));
   };
 

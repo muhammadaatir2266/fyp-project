@@ -354,7 +354,7 @@ export default function SignupPage() {
                         name="gender"
                         className="w-full h-12 rounded-md border border-input bg-background px-3 text-sm"
                         value={formData.gender}
-                        onChange={handleChange}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, gender: e.target.value }))}
                       >
                         <option value="">Prefer not to say</option>
                         <option value="MALE">Male</option>
