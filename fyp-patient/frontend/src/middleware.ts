@@ -11,6 +11,11 @@ export function middleware(request: NextRequest) {
     { path: "/patient", roles: ["PATIENT"] },
   ];
 
+  // Allow auth callback through without authentication
+  if (pathname === "/auth/callback") {
+    return NextResponse.next();
+  }
+
   // Define auth routes (where authenticated users should be redirected from)
   const authRoutes = ["/login", "/signup"];
 
@@ -21,10 +26,8 @@ export function middleware(request: NextRequest) {
 
   if (protectedRoute) {
     if (!authToken) {
-      // Not authenticated, redirect to login
-      const url = new URL("/login", request.url);
-      url.searchParams.set("callbackUrl", pathname);
-      return NextResponse.redirect(url);
+      const websiteUrl = process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003";
+      return NextResponse.redirect(new URL(`${websiteUrl}/login`));
     }
 
     if (userRole && !protectedRoute.roles.includes(userRole)) {

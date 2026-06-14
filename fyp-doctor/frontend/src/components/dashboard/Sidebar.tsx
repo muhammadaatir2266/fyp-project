@@ -69,7 +69,8 @@ export function Sidebar({ className }: { className?: string }) {
 
   const handleLogout = () => {
     logoutUser();
-    router.push("/login");
+    const websiteUrl = process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003";
+    window.location.replace(`${websiteUrl}/login`);
   };
 
   return (

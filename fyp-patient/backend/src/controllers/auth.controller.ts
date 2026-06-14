@@ -5,7 +5,6 @@ import { generateToken } from "../lib/jwt";
 import { AppError } from "../middleware/error.middleware";
 import { z } from "zod";
 
-// Validation schemas
 const loginSchema = z.object({
   email: z.string().email("Invalid email address"),
   password: z.string().min(6, "Password must be at least 6 characters"),
@@ -21,19 +20,39 @@ const signupSchema = z.object({
   gender: z.enum(["MALE", "FEMALE", "OTHER"]).optional(),
 });
 
+// Unified login — handles PATIENT, DOCTOR, and ADMIN roles so the
+// website can use a single endpoint and redirect by role.
 export const login = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { email, password } = loginSchema.parse(req.body);
 
     const user = await prisma.user.findUnique({
       where: { email },
-      include: { patient: true },
+      include: {
+        patient: true,
+        doctor: { include: { specialty: true } },
+        admin: true,
+      },
     });
 
     if (!user) throw new AppError("Invalid email or password", 401);
 
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) throw new AppError("Invalid email or password", 401);
+
+    // Role-specific checks
+    if (user.role === "DOCTOR") {
+      if (!user.doctor) throw new AppError("Invalid credentials", 401);
+      if (user.doctor.verificationStatus === "PENDING") {
+        throw new AppError("Your account is pending admin approval. You will be notified by email once approved.", 403);
+      }
+      if (user.doctor.verificationStatus === "REJECTED") {
+        throw new AppError("Your account application was rejected. Please contact support.", 403);
+      }
+      if (!user.doctor.isActive) {
+        throw new AppError("Your account is inactive. Please contact admin.", 403);
+      }
+    }
 
     const token = generateToken({
       userId: user.id,
@@ -47,7 +66,7 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
       role: user.role,
     };
 
-    if (user.patient) {
+    if (user.role === "PATIENT" && user.patient) {
       userData.patient = {
         id: user.patient.id,
         firstName: user.patient.firstName,
@@ -55,6 +74,24 @@ export const login = async (req: Request, res: Response, next: NextFunction) => 
         phone: user.patient.phone,
         dateOfBirth: user.patient.dateOfBirth,
         gender: user.patient.gender,
+      };
+    }
+
+    if (user.role === "DOCTOR" && user.doctor) {
+      userData.doctor = {
+        id: user.doctor.id,
+        firstName: user.doctor.firstName,
+        lastName: user.doctor.lastName,
+        specialty: user.doctor.specialty,
+        verificationStatus: user.doctor.verificationStatus,
+      };
+    }
+
+    if (user.role === "ADMIN" && user.admin) {
+      userData.admin = {
+        id: user.admin.id,
+        firstName: user.admin.firstName,
+        lastName: user.admin.lastName,
       };
     }
 

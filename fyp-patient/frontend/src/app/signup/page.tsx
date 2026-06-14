@@ -260,7 +260,7 @@ export default function SignupPage() {
             <p className="text-center text-sm text-muted-foreground">
               Already have an account?{" "}
               <Link
-                href="/login"
+                href={`${process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003"}/login`}
                 className="text-primary hover:text-accent font-semibold transition-colors"
               >
                 Sign in

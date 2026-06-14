@@ -73,6 +73,12 @@ export default function Navbar() {
           </div>
 
           <div className="flex items-center gap-3 border-l border-border/40 pl-6">
+            <Link
+              href="/login"
+              className="px-4 py-2 text-sm font-medium text-muted-foreground hover:text-primary transition-colors"
+            >
+              Sign In
+            </Link>
             <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
               <Link
                 href="/signup"
@@ -124,6 +130,13 @@ export default function Navbar() {
                 ))}
                 <div className="h-px w-full bg-border/40" />
                 <div className="flex flex-col gap-4">
+                  <Link
+                    href="/login"
+                    className="flex items-center justify-center rounded-2xl border border-border py-4 font-bold text-foreground"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Sign In
+                  </Link>
                   <Link
                     href="/signup"
                     className="flex items-center justify-center gap-2 rounded-2xl bg-primary py-4 font-bold text-primary-foreground shadow-lg shadow-primary/20"
