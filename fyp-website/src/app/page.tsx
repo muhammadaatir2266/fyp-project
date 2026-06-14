@@ -353,7 +353,7 @@ export default function Home() {
                 className="w-full sm:w-auto"
               >
                 <Link
-                  href={`${process.env.NEXT_PUBLIC_PATIENT_APP_URL}/signup`}
+                  href="/chat"
                   className="group flex w-full items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:shadow-primary/40 sm:text-lg"
                 >
                   Check Symptoms

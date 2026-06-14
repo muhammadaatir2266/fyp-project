@@ -10,6 +10,12 @@ const messageSchema = z.object({
   sessionId: z.string().uuid().optional(),
 })
 
+const guestMessageSchema = z.object({
+  message: z.string().min(1, 'Message is required'),
+  guestSessionId: z.string().uuid('guestSessionId must be a valid UUID'),
+  location: z.string().optional(),
+})
+
 const WEBHOOK_URL =
   process.env.N8N_CHAT_WEBHOOK_URL ||
   'https://fyp2026.app.n8n.cloud/webhook/55479a0c-6a9f-4083-ad95-8cbe28d9e828'
@@ -160,6 +166,62 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     }
     if (axios.isAxiosError(error)) {
       console.error('Webhook error:', error.response?.data || error.message)
+      return next(new AppError('Failed to process message. Please try again later.', 503))
+    }
+    next(error)
+  }
+}
+
+// Stateless guest endpoint — n8n proxy only, no DB writes, no doctor data exposed
+export const sendGuestMessage = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { message, guestSessionId, location } = guestMessageSchema.parse(req.body)
+
+    const webhookPayload = {
+      guest_session_id: guestSessionId,
+      message,
+      location: location || null,
+      timestamp: new Date().toISOString(),
+    }
+
+    const webhookResponse = await axios.post(WEBHOOK_URL, webhookPayload, {
+      headers: { 'Content-Type': 'application/json' },
+      timeout: 30000,
+    })
+
+    const n8nData = webhookResponse.data
+    let responseMessage = ''
+
+    if (typeof n8nData === 'string') {
+      responseMessage = n8nData
+    } else if (n8nData?.data) {
+      if (typeof n8nData.data === 'string') responseMessage = n8nData.data
+      else responseMessage = n8nData.data.message || n8nData.data.response || ''
+    } else {
+      responseMessage = n8nData?.message || n8nData?.response || 'I received your message. How can I help you?'
+    }
+
+    const rawPredictions: Array<{ disease: string; confidence: number }> = n8nData?.prediction || n8nData?.predictions || []
+    const predictions = rawPredictions.map((p) =>
+      typeof p === 'string' ? { disease: p, confidence: 1.0 } : { disease: p.disease, confidence: p.confidence ?? 1.0 }
+    )
+
+    res.json({
+      success: true,
+      diseaseDetected: predictions.length > 0,
+      data: {
+        message: responseMessage,
+        prediction: predictions.length > 0 ? predictions : undefined,
+        symptoms: n8nData?.symptoms,
+        // doctors intentionally omitted for guests
+      },
+    })
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors[0].message })
+    }
+    if (axios.isAxiosError(error)) {
+      console.error('Guest webhook error:', error.response?.data || error.message)
       return next(new AppError('Failed to process message. Please try again later.', 503))
     }
     next(error)
