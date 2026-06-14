@@ -5,6 +5,7 @@ import path from 'path'
 import fs from 'fs'
 import prisma from '../config/database'
 import { generateToken } from '../lib/jwt'
+import { cityCentroid } from '../lib/geocode'
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {
@@ -82,6 +83,7 @@ export const signup = (req: Request, res: Response): void => {
               clinicLocation,
               address,
               city,
+              ...(cityCentroid(city) ?? {}),
               verificationDocument: `/uploads/verification-documents/${req.file.filename}`,
               verificationStatus: 'PENDING',
               isActive: false,

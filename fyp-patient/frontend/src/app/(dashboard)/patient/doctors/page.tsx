@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, Suspense } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import api from "@/services/api.service";
 import { getDoctorReviews, type DoctorReview } from "@/services/reviews.service";
+import { getPatientLocation, clearPatientLocation, type PatientLocation } from "@/lib/location";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,8 +33,12 @@ import {
   ShieldCheck,
   Stethoscope,
   ChevronRight,
+  LocateFixed,
+  Navigation,
 } from "lucide-react";
 import Link from "next/link";
+
+const RADIUS_OPTIONS = [5, 10, 25, 50];
 
 interface Doctor {
   id: string;
@@ -52,6 +57,7 @@ interface Doctor {
   workingDays: string[];
   isPlatformVerified: boolean;
   completedAppointmentsCount: number;
+  distanceKm?: number;
 }
 
 function StarRow({ rating, count }: { rating: number; count: number }) {
@@ -161,6 +167,7 @@ function ReviewsSheet({
 function DoctorsContent() {
   const searchParams = useSearchParams();
   const specialtyFromUrl = searchParams.get("specialty") ?? "";
+  const nearbyFromUrl = searchParams.get("nearby") === "1";
 
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,11 +176,48 @@ function DoctorsContent() {
   const [cityFilter, setCityFilter] = useState("");
   const [total, setTotal] = useState(0);
 
+  // Location state
+  const [locationMode, setLocationMode] = useState<"idle" | "loading" | "gps" | "city" | "denied">("idle");
+  const [patientLoc, setPatientLoc] = useState<PatientLocation>(null);
+  const [radiusKm, setRadiusKm] = useState(25);
+  const [nearbyEnabled, setNearbyEnabled] = useState(nearbyFromUrl);
+
   const [reviewsDoctor, setReviewsDoctor] = useState<Doctor | null>(null);
+  const locationInitialized = useRef(false);
 
   useEffect(() => {
     setSpecialtyFilter(specialtyFromUrl);
   }, [specialtyFromUrl]);
+
+  // Auto-request location on mount (or when nearby mode is triggered from URL)
+  useEffect(() => {
+    if (locationInitialized.current) return;
+    locationInitialized.current = true;
+    requestLocation();
+  }, []);
+
+  async function requestLocation() {
+    setLocationMode("loading");
+    const loc = await getPatientLocation();
+    setPatientLoc(loc);
+    if (!loc) {
+      setLocationMode("denied");
+    } else if (loc.mode === "gps") {
+      setLocationMode("gps");
+      setNearbyEnabled(true);
+    } else {
+      setLocationMode("city");
+      // city fallback: pre-fill city filter and keep nearby off
+      setCityFilter(loc.city);
+    }
+  }
+
+  function disableNearby() {
+    setNearbyEnabled(false);
+    clearPatientLocation();
+    setPatientLoc(null);
+    setLocationMode("idle");
+  }
 
   const fetchDoctors = useCallback(async () => {
     setLoading(true);
@@ -181,7 +225,15 @@ function DoctorsContent() {
       const params: Record<string, string> = {};
       if (search) params.name = search;
       if (specialtyFilter) params.specialty = specialtyFilter;
-      if (cityFilter) params.city = cityFilter;
+
+      if (nearbyEnabled && patientLoc?.mode === "gps") {
+        params.lat = String(patientLoc.lat);
+        params.lng = String(patientLoc.lng);
+        params.radiusKm = String(radiusKm);
+      } else if (cityFilter) {
+        params.city = cityFilter;
+      }
+
       const res = await api.get("/doctors", { params });
       setDoctors(res.data.doctors);
       setTotal(res.data.total);
@@ -190,21 +242,91 @@ function DoctorsContent() {
     } finally {
       setLoading(false);
     }
-  }, [search, specialtyFilter, cityFilter]);
+  }, [search, specialtyFilter, cityFilter, nearbyEnabled, patientLoc, radiusKm]);
 
   useEffect(() => {
     const timer = setTimeout(fetchDoctors, 400);
     return () => clearTimeout(timer);
   }, [fetchDoctors]);
 
+  const gpsActive = nearbyEnabled && patientLoc?.mode === "gps";
+
   return (
     <div className="flex flex-col gap-6 pb-8 max-w-5xl mx-auto w-full">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Find a Specialist</h1>
         <p className="text-muted-foreground mt-1">
-          {total > 0 ? `${total} verified doctors available` : "Search for doctors by name, specialty, or city"}
+          {total > 0 ? `${total} verified doctors available` : "Search for doctors by name, specialty, or location"}
         </p>
       </div>
+
+      {/* Location controls */}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
+          variant={gpsActive ? "default" : "outline"}
+          size="sm"
+          className="gap-2 h-9"
+          onClick={requestLocation}
+          disabled={locationMode === "loading"}
+        >
+          {locationMode === "loading" ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <LocateFixed className="h-4 w-4" />
+          )}
+          {gpsActive ? "Using my location" : "Use my location"}
+        </Button>
+
+        {/* Radius selector — only visible when GPS is active */}
+        {gpsActive && (
+          <div className="flex items-center gap-1">
+            {RADIUS_OPTIONS.map((r) => (
+              <Button
+                key={r}
+                size="sm"
+                variant={radiusKm === r ? "secondary" : "ghost"}
+                className="h-8 px-2.5 text-xs"
+                onClick={() => setRadiusKm(r)}
+              >
+                {r} km
+              </Button>
+            ))}
+          </div>
+        )}
+
+        {gpsActive && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground gap-1"
+            onClick={disableNearby}
+          >
+            <X className="h-3.5 w-3.5" />
+            Disable nearby
+          </Button>
+        )}
+      </div>
+
+      {/* Active nearby banner */}
+      {gpsActive && (
+        <div className="flex items-center gap-2 text-sm bg-primary/5 border border-primary/20 rounded-lg px-4 py-2.5">
+          <Navigation className="h-4 w-4 text-primary shrink-0" />
+          <span className="text-muted-foreground">
+            Showing doctors within <span className="font-semibold text-foreground">{radiusKm} km</span> of your location
+          </span>
+        </div>
+      )}
+
+      {/* GPS denied / city fallback banner */}
+      {locationMode === "city" && patientLoc?.mode === "city" && (
+        <div className="flex items-center gap-2 text-sm bg-amber-500/5 border border-amber-500/20 rounded-lg px-4 py-2.5">
+          <MapPin className="h-4 w-4 text-amber-500 shrink-0" />
+          <span className="text-muted-foreground">
+            Location unavailable — showing doctors in{" "}
+            <span className="font-semibold text-foreground">{patientLoc.city}</span>
+          </span>
+        </div>
+      )}
 
       {/* Active specialty filter banner */}
       {specialtyFromUrl && (
@@ -244,6 +366,7 @@ function DoctorsContent() {
             className="pl-9"
             value={cityFilter}
             onChange={(e) => setCityFilter(e.target.value)}
+            disabled={gpsActive}
           />
         </div>
       </div>
@@ -256,7 +379,14 @@ function DoctorsContent() {
         <div className="text-center py-20 text-muted-foreground">
           <Search className="mx-auto h-12 w-12 mb-4 opacity-30" />
           <p className="text-lg font-medium">No doctors found</p>
-          <p className="text-sm">Try adjusting your search filters</p>
+          {gpsActive ? (
+            <p className="text-sm">
+              No doctors with coordinates within {radiusKm} km. Try widening the radius or{" "}
+              <button className="underline" onClick={disableNearby}>disable nearby mode</button>.
+            </p>
+          ) : (
+            <p className="text-sm">Try adjusting your search filters</p>
+          )}
         </div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
@@ -290,6 +420,12 @@ function DoctorsContent() {
                     <MapPin className="h-3.5 w-3.5" />
                     {doctor.city}
                   </span>
+                  {doctor.distanceKm !== undefined && (
+                    <span className="flex items-center gap-1 text-primary font-medium">
+                      <Navigation className="h-3.5 w-3.5" />
+                      {doctor.distanceKm} km away
+                    </span>
+                  )}
                   <span className="flex items-center gap-1">
                     <Clock className="h-3.5 w-3.5" />
                     {doctor.experience} yrs exp

@@ -235,8 +235,8 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
                       <Link
                         href={
                           message.predictions[0]?.specialty
-                            ? `/patient/doctors?specialty=${encodeURIComponent(message.predictions[0].specialty)}`
-                            : "/patient/doctors"
+                            ? `/patient/doctors?specialty=${encodeURIComponent(message.predictions[0].specialty)}&nearby=1`
+                            : "/patient/doctors?nearby=1"
                         }
                       >
                         <Search className="h-3.5 w-3.5" />

@@ -58,6 +58,7 @@ async function main() {
   console.log('✅ Seeded admin: admin@mediassist.com / admin123')
 
   // ---- Demo doctors — start with rating 0; reviews will recalculate ----
+  // lat/lng: city centroid + small unique offset so distances differ realistically
   const demoDocInfo = [
     {
       email: 'doctor@mediassist.com',
@@ -66,6 +67,7 @@ async function main() {
       phone: '+92-21-3456789',   address: '123 Medical Center Drive',
       qualifications: 'MD, FACC - Board Certified Cardiologist',
       experience: 15, consultationFee: 2000,
+      latitude: 24.8607 + 0.010, longitude: 67.0011 + 0.005,
     },
     {
       email: 'doctor2@mediassist.com',
@@ -74,6 +76,7 @@ async function main() {
       phone: '+92-42-1234567',   address: '45 Gulberg III',
       qualifications: 'MBBS, FCPS - General Physician',
       experience: 8,  consultationFee: 1500,
+      latitude: 31.5204 + 0.020, longitude: 74.3587 - 0.012,
     },
     {
       email: 'doctor3@mediassist.com',
@@ -82,6 +85,7 @@ async function main() {
       phone: '+92-51-9876543',   address: '78 F-7 Markaz',
       qualifications: 'MBBS, FCPS - Dermatologist',
       experience: 10, consultationFee: 2500,
+      latitude: 33.6844 - 0.008, longitude: 73.0479 + 0.015,
     },
     {
       email: 'doctor4@mediassist.com',
@@ -90,6 +94,7 @@ async function main() {
       phone: '+92-21-8765432',   address: '22 Clifton Block 4',
       qualifications: 'MD, Neurology - Aga Khan Hospital',
       experience: 12, consultationFee: 3000,
+      latitude: 24.8607 - 0.015, longitude: 67.0011 + 0.020,
     },
     {
       email: 'doctor5@mediassist.com',
@@ -98,6 +103,7 @@ async function main() {
       phone: '+92-42-5678901',   address: '10 DHA Phase 5',
       qualifications: 'MBBS, DCH - Pediatrician',
       experience: 7,  consultationFee: 1800,
+      latitude: 31.5204 - 0.025, longitude: 74.3587 + 0.018,
     },
     {
       email: 'doctor6@mediassist.com',
@@ -106,6 +112,7 @@ async function main() {
       phone: '+92-51-3214567',   address: '33 Blue Area',
       qualifications: 'MBBS, FRCS - Orthopedic Surgeon',
       experience: 18, consultationFee: 3500,
+      latitude: 33.6844 + 0.012, longitude: 73.0479 - 0.010,
     },
     {
       email: 'doctor7@mediassist.com',
@@ -114,6 +121,7 @@ async function main() {
       phone: '+92-21-2233445',   address: '56 PECHS Block 2',
       qualifications: 'MBBS, FCPS - Gastroenterologist',
       experience: 9,  consultationFee: 2200,
+      latitude: 24.8607 + 0.025, longitude: 67.0011 - 0.018,
     },
   ]
 
@@ -135,6 +143,8 @@ async function main() {
             phone: d.phone,
             address: d.address,
             city: d.city,
+            latitude: d.latitude,
+            longitude: d.longitude,
             qualifications: d.qualifications,
             experience: d.experience,
             consultationFee: d.consultationFee,

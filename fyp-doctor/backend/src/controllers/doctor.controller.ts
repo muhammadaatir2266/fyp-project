@@ -1,6 +1,7 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import prisma from '../config/database'
+import { cityCentroid } from '../lib/geocode'
 
 export const getAvailability = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -84,6 +85,7 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
         ...(phone && { phone }),
         ...(address && { address }),
         ...(city && { city }),
+        ...(city && (cityCentroid(city) ?? {})),
         ...(qualifications && { qualifications }),
         ...(experience !== undefined && { experience: parseInt(String(experience)) }),
         ...(consultationFee !== undefined && { consultationFee: parseFloat(String(consultationFee)) }),

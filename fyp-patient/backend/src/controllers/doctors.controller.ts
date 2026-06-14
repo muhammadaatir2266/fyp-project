@@ -1,12 +1,22 @@
 import { Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
+import { haversineKm } from '../lib/geocode'
 
 export const getDoctors = async (req: Request, res: Response) => {
   try {
-    const { specialty, city, name, minRating, page = '1', limit = '20' } = req.query as Record<string, string>
+    const {
+      specialty, city, name, minRating,
+      lat, lng, radiusKm = '25',
+      page = '1', limit = '20',
+    } = req.query as Record<string, string>
     const pageNum = Math.max(1, parseInt(page))
     const limitNum = Math.min(50, Math.max(1, parseInt(limit)))
     const skip = (pageNum - 1) * limitNum
+
+    const patLat = lat ? parseFloat(lat) : null
+    const patLng = lng ? parseFloat(lng) : null
+    const radius = Math.min(100, Math.max(1, parseFloat(radiusKm)))
+    const nearbyMode = patLat !== null && patLng !== null && !isNaN(patLat) && !isNaN(patLng)
 
     const where: any = {
       isActive: true,
@@ -17,7 +27,8 @@ export const getDoctors = async (req: Request, res: Response) => {
     if (specialty) {
       where.specialty = { name: { contains: specialty, mode: 'insensitive' } }
     }
-    if (city) {
+    // In nearby mode we skip the city text filter; distance is the filter
+    if (city && !nearbyMode) {
       where.city = { contains: city, mode: 'insensitive' }
     }
     if (name) {
@@ -31,6 +42,7 @@ export const getDoctors = async (req: Request, res: Response) => {
     const globalAgg = await prisma.doctorReview.aggregate({ _avg: { rating: true } })
     const globalAvg = globalAgg._avg.rating ?? 3.5
 
+    // In nearby mode we fetch all approved doctors (no pagination yet — filter by distance first)
     const [doctors, total] = await Promise.all([
       prisma.doctor.findMany({
         where,
@@ -42,55 +54,78 @@ export const getDoctors = async (req: Request, res: Response) => {
             },
           },
         },
-        skip,
-        take: limitNum,
+        // Skip DB pagination in nearby mode so we can distance-filter first
+        ...(nearbyMode ? {} : { skip, take: limitNum }),
       }),
       prisma.doctor.count({ where }),
     ])
 
-    // Apply trust-weighted ranking in JS (page size is small, so this is fine)
-    const ranked = doctors
-      .map((doc) => {
-        const isPlatformVerified =
-          doc.verificationStatus === 'APPROVED' && doc.isVerified && doc.verifiedAt !== null
-        const completedAppointmentsCount = doc._count.appointments
-        // Bayesian-weighted rating: pulls low-review-count doctors toward global average
-        const weighted =
-          (doc.reviewCount * doc.rating + 3 * globalAvg) / (doc.reviewCount + 3)
-        return { doc, isPlatformVerified, completedAppointmentsCount, weighted }
-      })
-      .filter(({ doc }) => {
-        if (minRating) {
-          const min = parseFloat(minRating)
-          const w = (doc.reviewCount * doc.rating + 3 * globalAvg) / (doc.reviewCount + 3)
-          return w >= min
-        }
-        return true
-      })
-      .sort((a, b) => {
-        // 1. Platform verified first
-        if (a.isPlatformVerified !== b.isPlatformVerified) {
-          return a.isPlatformVerified ? -1 : 1
-        }
-        // 2. Bayesian weighted rating
-        if (Math.abs(a.weighted - b.weighted) > 0.01) return b.weighted - a.weighted
-        // 3. Review count
-        if (a.doc.reviewCount !== b.doc.reviewCount) return b.doc.reviewCount - a.doc.reviewCount
-        // 4. Completed appointments
-        if (a.completedAppointmentsCount !== b.completedAppointmentsCount) {
-          return b.completedAppointmentsCount - a.completedAppointmentsCount
-        }
-        // 5. Experience
-        return b.doc.experience - a.doc.experience
-      })
+    // Annotate each doctor with trust signals + optional distance
+    type Annotated = {
+      doc: (typeof doctors)[number]
+      isPlatformVerified: boolean
+      completedAppointmentsCount: number
+      weighted: number
+      distanceKm?: number
+    }
+
+    let annotated: Annotated[] = doctors.map((doc) => {
+      const isPlatformVerified =
+        doc.verificationStatus === 'APPROVED' && doc.isVerified && doc.verifiedAt !== null
+      const completedAppointmentsCount = doc._count.appointments
+      const weighted = (doc.reviewCount * doc.rating + 3 * globalAvg) / (doc.reviewCount + 3)
+      const distanceKm =
+        nearbyMode && doc.latitude != null && doc.longitude != null
+          ? Math.round(haversineKm(patLat!, patLng!, doc.latitude, doc.longitude) * 10) / 10
+          : undefined
+      return { doc, isPlatformVerified, completedAppointmentsCount, weighted, distanceKm }
+    })
+
+    // In nearby mode: filter by radius (doctors without coords are excluded)
+    if (nearbyMode) {
+      annotated = annotated.filter(
+        ({ distanceKm }) => distanceKm !== undefined && distanceKm <= radius
+      )
+    }
+
+    // minRating filter
+    if (minRating) {
+      const min = parseFloat(minRating)
+      annotated = annotated.filter(({ weighted }) => weighted >= min)
+    }
+
+    // Sort
+    annotated.sort((a, b) => {
+      // 1. Nearest first when in nearby mode
+      if (nearbyMode && a.distanceKm !== undefined && b.distanceKm !== undefined) {
+        if (Math.abs(a.distanceKm - b.distanceKm) > 0.5) return a.distanceKm - b.distanceKm
+      }
+      // 2. Platform verified first
+      if (a.isPlatformVerified !== b.isPlatformVerified) return a.isPlatformVerified ? -1 : 1
+      // 3. Bayesian weighted rating
+      if (Math.abs(a.weighted - b.weighted) > 0.01) return b.weighted - a.weighted
+      // 4. Review count
+      if (a.doc.reviewCount !== b.doc.reviewCount) return b.doc.reviewCount - a.doc.reviewCount
+      // 5. Completed appointments
+      if (a.completedAppointmentsCount !== b.completedAppointmentsCount) {
+        return b.completedAppointmentsCount - a.completedAppointmentsCount
+      }
+      // 6. Experience
+      return b.doc.experience - a.doc.experience
+    })
+
+    // Apply pagination after distance-filtering in nearby mode
+    const paginatedTotal = nearbyMode ? annotated.length : total
+    const paginated = nearbyMode ? annotated.slice(skip, skip + limitNum) : annotated
 
     res.json({
-      doctors: ranked.map(({ doc, isPlatformVerified, completedAppointmentsCount }) =>
-        formatDoctor(doc, isPlatformVerified, completedAppointmentsCount)
+      doctors: paginated.map(({ doc, isPlatformVerified, completedAppointmentsCount, distanceKm }) =>
+        formatDoctor(doc, isPlatformVerified, completedAppointmentsCount, distanceKm)
       ),
-      total,
+      total: paginatedTotal,
       page: pageNum,
-      totalPages: Math.ceil(total / limitNum),
+      totalPages: Math.ceil(paginatedTotal / limitNum),
+      nearbyMode,
     })
   } catch (error) {
     console.error('Get doctors error:', error)
@@ -202,7 +237,12 @@ export const getDoctorSlots = async (req: Request, res: Response) => {
   }
 }
 
-function formatDoctor(doctor: any, isPlatformVerified: boolean, completedAppointmentsCount: number) {
+function formatDoctor(
+  doctor: any,
+  isPlatformVerified: boolean,
+  completedAppointmentsCount: number,
+  distanceKm?: number,
+) {
   return {
     id: doctor.id,
     firstName: doctor.firstName,
@@ -225,5 +265,6 @@ function formatDoctor(doctor: any, isPlatformVerified: boolean, completedAppoint
     workingDays: doctor.workingDays,
     isPlatformVerified,
     completedAppointmentsCount,
+    ...(distanceKm !== undefined && { distanceKm }),
   }
 }

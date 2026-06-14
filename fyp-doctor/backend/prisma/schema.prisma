@@ -137,6 +137,8 @@ model Patient {
   phone            String?
   address          String?
   city             String?
+  latitude         Float?
+  longitude        Float?
   emergencyContact String?
   medicalHistory   String?
   allergies        String?
