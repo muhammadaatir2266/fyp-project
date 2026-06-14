@@ -12,6 +12,7 @@ import {
 import { FileText, Loader2, MessageSquare } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useChatWidget } from "@/components/chat/ChatWidgetContext";
 
 interface PatientSymptom {
   id: string;
@@ -29,6 +30,7 @@ const SEVERITY_LABELS = ["", "Mild", "Mild-Moderate", "Moderate", "Moderate-Seve
 export default function SymptomsPage() {
   const [symptoms, setSymptoms] = useState<PatientSymptom[]>([]);
   const [loading, setLoading] = useState(true);
+  const { openChat } = useChatWidget();
 
   useEffect(() => {
     api.get("/symptoms")
@@ -43,11 +45,9 @@ export default function SymptomsPage() {
           <h1 className="text-3xl font-bold tracking-tight">Symptom Log</h1>
           <p className="text-muted-foreground mt-1">Symptoms reported during AI chat consultations</p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/patient/chat">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            Start Chat
-          </Link>
+        <Button variant="outline" onClick={openChat}>
+          <MessageSquare className="mr-2 h-4 w-4" />
+          Start Chat
         </Button>
       </div>
 
@@ -60,8 +60,8 @@ export default function SymptomsPage() {
           <FileText className="mx-auto h-12 w-12 mb-4 opacity-30" />
           <p className="text-lg font-medium">No symptoms logged yet</p>
           <p className="text-sm">Chat with the AI assistant to log symptoms automatically</p>
-          <Button className="mt-4" asChild>
-            <Link href="/patient/chat">Start AI Consultation</Link>
+          <Button className="mt-4" onClick={openChat}>
+            Start AI Consultation
           </Button>
         </div>
       ) : (

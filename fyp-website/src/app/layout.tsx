@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import NavbarWrapper from "@/components/NavbarWrapper";
+import RootLayoutShell from "@/components/RootLayoutShell";
 
 export const metadata: Metadata = {
   title: "Trimed Al",
@@ -15,8 +16,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="antialiased font-sans">
-        <NavbarWrapper />
-        {children}
+        <RootLayoutShell>
+          <NavbarWrapper />
+          {children}
+        </RootLayoutShell>
       </body>
     </html>
   );

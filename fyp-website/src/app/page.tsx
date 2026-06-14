@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
 import { useState } from "react";
+import { useGuestChatWidget } from "@/components/chat/GuestChatWidgetContext";
 import {
   Activity,
   FileText,
@@ -31,6 +32,7 @@ export default function Home() {
   const [activeTestimonialTab, setActiveTestimonialTab] = useState<
     "patient" | "doctor"
   >("patient");
+  const { openChat } = useGuestChatWidget();
 
   const container = {
     hidden: {},
@@ -352,13 +354,13 @@ export default function Home() {
                 whileTap={{ scale: 0.95 }}
                 className="w-full sm:w-auto"
               >
-                <Link
-                  href="/chat"
+                <button
+                  onClick={openChat}
                   className="group flex w-full items-center justify-center gap-2 rounded-full bg-primary px-8 py-4 text-base font-semibold text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:shadow-primary/40 sm:text-lg"
                 >
                   Check Symptoms
                   <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </Link>
+                </button>
               </motion.div>
               <motion.div
                 whileHover={{ scale: 1.05 }}

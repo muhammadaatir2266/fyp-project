@@ -11,6 +11,7 @@ import {
 import { History, Loader2, MessageSquare, Stethoscope } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { useChatWidget } from "@/components/chat/ChatWidgetContext";
 
 interface ChatSession {
   id: string;
@@ -29,6 +30,7 @@ interface ChatSession {
 export default function HistoryPage() {
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [loading, setLoading] = useState(true);
+  const { openChat } = useChatWidget();
 
   useEffect(() => {
     api.get("/symptoms/history")
@@ -43,11 +45,9 @@ export default function HistoryPage() {
           <h1 className="text-3xl font-bold tracking-tight">Consultation History</h1>
           <p className="text-muted-foreground mt-1">Your past AI consultations and diagnoses</p>
         </div>
-        <Button asChild variant="outline">
-          <Link href="/patient/chat">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            New Consultation
-          </Link>
+        <Button variant="outline" onClick={openChat}>
+          <MessageSquare className="mr-2 h-4 w-4" />
+          New Consultation
         </Button>
       </div>
 
@@ -60,8 +60,8 @@ export default function HistoryPage() {
           <History className="mx-auto h-12 w-12 mb-4 opacity-30" />
           <p className="text-lg font-medium">No consultation history yet</p>
           <p className="text-sm">Start a chat consultation to see your history here</p>
-          <Button className="mt-4" asChild>
-            <Link href="/patient/chat">Start AI Consultation</Link>
+          <Button className="mt-4" onClick={openChat}>
+            Start AI Consultation
           </Button>
         </div>
       ) : (

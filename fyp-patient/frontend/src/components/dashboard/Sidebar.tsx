@@ -4,14 +4,13 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
-  Activity,
   LayoutDashboard,
-  MessageSquare,
   Calendar,
   FileText,
   User,
   LogOut,
   Settings,
+  MessageSquare,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -22,17 +21,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { logoutUser } from "@/lib/auth";
+import { useChatWidget } from "@/components/chat/ChatWidgetContext";
 
 const sidebarLinks = [
   {
     title: "Overview",
     href: "/patient/dashboard",
     icon: LayoutDashboard,
-  },
-  {
-    title: "Chat Assistant",
-    href: "/patient/chat",
-    icon: MessageSquare,
   },
   {
     title: "Appointments",
@@ -59,6 +54,7 @@ const sidebarLinks = [
 export function Sidebar({ className }: { className?: string }) {
   const pathname = usePathname();
   const router = useRouter();
+  const { openChat } = useChatWidget();
 
   const handleLogout = () => {
     logoutUser();
@@ -130,11 +126,12 @@ export function Sidebar({ className }: { className?: string }) {
           <CardContent className="p-4 pt-0">
             <Button
               size="sm"
-              className="w-full text-xs"
+              className="w-full text-xs gap-1.5"
               variant="outline"
-              asChild
+              onClick={openChat}
             >
-              <Link href="/patient/chat">Start Chat</Link>
+              <MessageSquare className="h-3.5 w-3.5" />
+              Start Chat
             </Button>
           </CardContent>
         </Card>

@@ -1,9 +1,7 @@
-import { ChatInterface } from "@/components/chat/ChatInterface";
+import { redirect } from "next/navigation";
 
+// Chat is now a popup widget available on every dashboard page.
+// Redirect old bookmarks to dashboard and auto-open the widget.
 export default function ChatPage() {
-  return (
-    <div className="flex flex-col h-[calc(100vh-2rem)] md:h-screen w-full">
-      <ChatInterface />
-    </div>
-  );
+  redirect("/patient/dashboard?chat=open");
 }

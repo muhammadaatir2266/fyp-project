@@ -24,6 +24,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import api from "@/services/api.service";
 import { fetchCurrentUser, type User } from "@/lib/auth";
+import { useChatWidget } from "@/components/chat/ChatWidgetContext";
 
 interface Appointment {
   id: string;
@@ -54,6 +55,7 @@ export default function DashboardPage() {
   const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
   const [recentHistory, setRecentHistory] = useState<ChatSession[]>([]);
   const [loadingUser, setLoadingUser] = useState(true);
+  const { openChat } = useChatWidget();
 
   const currentDate = new Date().toLocaleDateString("en-US", {
     weekday: "long",
@@ -116,12 +118,10 @@ export default function DashboardPage() {
                 size="lg"
                 variant="secondary"
                 className="h-14 px-8 text-lg rounded-2xl shadow-lg hover:scale-105 transition-transform font-semibold"
-                asChild
+                onClick={openChat}
               >
-                <Link href="/patient/chat">
-                  <MessageSquare className="mr-2.5 h-6 w-6" />
-                  Start Symptom Check
-                </Link>
+                <MessageSquare className="mr-2.5 h-6 w-6" />
+                Start Symptom Check
               </Button>
             </div>
           </div>
@@ -230,9 +230,9 @@ export default function DashboardPage() {
           <Card className="border-dashed border-border/50">
             <CardContent className="p-6 text-center text-muted-foreground text-sm">
               No consultations yet.{" "}
-              <Link href="/patient/chat" className="text-primary hover:underline">
+              <button onClick={openChat} className="text-primary hover:underline">
                 Start your first AI consultation
-              </Link>
+              </button>
             </CardContent>
           </Card>
         ) : (

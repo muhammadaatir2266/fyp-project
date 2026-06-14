@@ -27,7 +27,7 @@ interface Message {
 const cn = (...classes: (string | undefined | false)[]) =>
   classes.filter(Boolean).join(" ");
 
-export default function GuestChatInterface() {
+export default function GuestChatInterface({ embedded = false }: { embedded?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -110,30 +110,32 @@ export default function GuestChatInterface() {
 
   return (
     <div className="flex flex-col h-full w-full bg-background">
-      {/* Header */}
-      <div className="flex items-center gap-3 p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
-          <Bot className="h-5 w-5 text-primary" />
+      {/* Header — hidden when inside the popup widget (popup chrome provides its own) */}
+      {!embedded && (
+        <div className="flex items-center gap-3 p-4 border-b bg-background/95 backdrop-blur sticky top-0 z-10">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 border border-primary/20">
+            <Bot className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground leading-none">Medical Assistant</h2>
+            <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              Online · Guest session
+            </p>
+          </div>
+          {!isLocked && (
+            <Link
+              href="/login"
+              className="ml-auto text-xs font-medium text-primary hover:text-accent transition-colors"
+            >
+              Sign in
+            </Link>
+          )}
         </div>
-        <div>
-          <h2 className="text-sm font-semibold text-foreground leading-none">Medical Assistant</h2>
-          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
-            </span>
-            Online · Guest session
-          </p>
-        </div>
-        {!isLocked && (
-          <Link
-            href="/login"
-            className="ml-auto text-xs font-medium text-primary hover:text-accent transition-colors"
-          >
-            Sign in
-          </Link>
-        )}
-      </div>
+      )}
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
