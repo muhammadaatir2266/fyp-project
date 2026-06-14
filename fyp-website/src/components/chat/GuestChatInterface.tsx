@@ -14,6 +14,7 @@ import {
 interface PredictionItem {
   disease: string;
   confidence: number;
+  specialty?: string;
 }
 
 interface Message {
@@ -40,6 +41,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLocked, setIsLocked] = useState(false);
+  const [topSpecialty, setTopSpecialty] = useState<string | undefined>(undefined);
   const [guestSessionId, setGuestSessionId] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -81,6 +83,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
 
       if (response.diseaseDetected) {
         markGuestChatCompleted();
+        setTopSpecialty(predictions[0]?.specialty);
         setIsLocked(true);
       }
     } catch (err: unknown) {
@@ -196,21 +199,28 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
                         <Stethoscope className="h-3.5 w-3.5" />
                         Possible Conditions
                       </p>
-                      <div className="space-y-1.5">
+                      <div className="space-y-2">
                         {msg.predictions.map((pred, i) => (
-                          <div key={i} className="flex items-center justify-between text-xs">
-                            <span className="font-medium text-foreground">{pred.disease}</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-amber-500"
-                                  style={{ width: `${Math.round(pred.confidence * 100)}%` }}
-                                />
+                          <div key={i} className="space-y-0.5">
+                            <div className="flex items-center justify-between text-xs">
+                              <span className="font-medium text-foreground">{pred.disease}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-amber-500"
+                                    style={{ width: `${Math.round(pred.confidence * 100)}%` }}
+                                  />
+                                </div>
+                                <span className="text-muted-foreground w-8 text-right">
+                                  {Math.round(pred.confidence * 100)}%
+                                </span>
                               </div>
-                              <span className="text-muted-foreground w-8 text-right">
-                                {Math.round(pred.confidence * 100)}%
-                              </span>
                             </div>
+                            {pred.specialty && (
+                              <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                                Recommended specialist: {pred.specialty}
+                              </p>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -258,9 +268,9 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
                 </div>
               </div>
               <div>
-                <p className="font-semibold text-foreground text-sm">Ready to find a doctor?</p>
+                <p className="font-semibold text-foreground text-sm">Ready to find a specialist?</p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  Create an account or sign in to book an appointment with a specialist and continue using the assistant.
+                  Create an account or sign in to find{topSpecialty ? ` a ${topSpecialty}` : " a specialist"} near you and book an appointment.
                 </p>
               </div>
               <div className="flex flex-col sm:flex-row gap-2 justify-center">

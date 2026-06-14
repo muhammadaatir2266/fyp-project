@@ -6,7 +6,7 @@ export interface GuestChatResponse {
   diseaseDetected: boolean;
   data: {
     message: string;
-    prediction?: Array<{ disease: string; confidence: number }>;
+    prediction?: Array<{ disease: string; confidence: number; specialty?: string }>;
     symptoms?: string[];
   };
 }

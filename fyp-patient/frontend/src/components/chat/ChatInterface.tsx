@@ -7,8 +7,7 @@ import {
   Bot,
   Loader2,
   Stethoscope,
-  Calendar,
-  ChevronRight,
+  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -20,17 +19,7 @@ import Link from "next/link";
 interface PredictionItem {
   disease: string;
   confidence: number;
-}
-
-interface DoctorItem {
-  id: string;
-  fullName?: string;
-  firstName?: string;
-  lastName?: string;
-  specialty?: { name: string };
-  city?: string;
-  rating?: number;
-  consultationFee?: number;
+  specialty?: string;
 }
 
 type Message = {
@@ -39,7 +28,6 @@ type Message = {
   content: string;
   timestamp: Date;
   predictions?: PredictionItem[];
-  doctors?: DoctorItem[];
 };
 
 export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
@@ -91,7 +79,6 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
             "I received your message.",
           timestamp: new Date(),
           predictions: normalizePredictions(response.data.prediction),
-          doctors: response.data.doctors,
         };
         setMessages((prev) => [...prev, aiMessage]);
       } else {
@@ -205,77 +192,57 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
                       <Stethoscope className="h-3.5 w-3.5" />
                       Possible Conditions
                     </p>
-                    <div className="space-y-1.5">
+                    <div className="space-y-2">
                       {message.predictions.map((pred, i) => (
-                        <div
-                          key={i}
-                          className="flex items-center justify-between text-xs"
-                        >
-                          <span className="font-medium text-foreground">
-                            {pred.disease}
-                          </span>
-                          <div className="flex items-center gap-2">
-                            <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div
-                                className="h-full rounded-full bg-amber-500"
-                                style={{
-                                  width: `${Math.round(pred.confidence * 100)}%`,
-                                }}
-                              />
-                            </div>
-                            <span className="text-muted-foreground w-8 text-right">
-                              {Math.round(pred.confidence * 100)}%
+                        <div key={i} className="space-y-0.5">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-foreground">
+                              {pred.disease}
                             </span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-1.5 rounded-full bg-muted overflow-hidden">
+                                <div
+                                  className="h-full rounded-full bg-amber-500"
+                                  style={{
+                                    width: `${Math.round(pred.confidence * 100)}%`,
+                                  }}
+                                />
+                              </div>
+                              <span className="text-muted-foreground w-8 text-right">
+                                {Math.round(pred.confidence * 100)}%
+                              </span>
+                            </div>
                           </div>
+                          {pred.specialty && (
+                            <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                              Recommended specialist: {pred.specialty}
+                            </p>
+                          )}
                         </div>
                       ))}
                     </div>
                     <p className="text-[10px] text-amber-700 dark:text-amber-500 italic">
                       For informational purposes only. Please consult a qualified doctor.
                     </p>
-                  </div>
-                )}
 
-                {/* Doctor recommendation cards */}
-                {message.doctors && message.doctors.length > 0 && (
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold text-muted-foreground px-1">
-                      Recommended Specialists
-                    </p>
-                    {message.doctors.slice(0, 3).map((doc) => {
-                      const name =
-                        doc.fullName ||
-                        `${doc.firstName || ""} ${doc.lastName || ""}`.trim();
-                      return (
-                        <div
-                          key={doc.id}
-                          className="flex items-center justify-between bg-background border border-border/60 rounded-xl px-3 py-2.5 shadow-sm"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-semibold truncate">
-                              Dr. {name}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {doc.specialty?.name}
-                              {doc.city ? ` · ${doc.city}` : ""}
-                            </p>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="ml-2 shrink-0 h-7 text-xs gap-1"
-                            asChild
-                          >
-                            <Link
-                              href={`/patient/appointments?doctorId=${doc.id}&doctorName=${encodeURIComponent("Dr. " + name)}`}
-                            >
-                              Book
-                              <ChevronRight className="h-3 w-3" />
-                            </Link>
-                          </Button>
-                        </div>
-                      );
-                    })}
+                    {/* Find a Specialist CTA */}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="w-full mt-1 h-8 text-xs gap-1.5 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
+                      asChild
+                    >
+                      <Link
+                        href={
+                          message.predictions[0]?.specialty
+                            ? `/patient/doctors?specialty=${encodeURIComponent(message.predictions[0].specialty)}`
+                            : "/patient/doctors"
+                        }
+                      >
+                        <Search className="h-3.5 w-3.5" />
+                        Find a Specialist
+                      </Link>
+                    </Button>
                   </div>
                 )}
               </div>
@@ -336,19 +303,23 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
   );
 }
 
-function normalizePredictions(raw: any): PredictionItem[] | undefined {
+function normalizePredictions(raw: unknown): PredictionItem[] | undefined {
   if (!raw) return undefined;
   if (Array.isArray(raw)) {
     return raw
       .map((item) => {
         if (typeof item === "string") return { disease: item, confidence: 1 };
-        if (typeof item === "object" && item.disease)
-          return { disease: item.disease, confidence: item.confidence ?? 1 };
+        if (typeof item === "object" && item !== null && "disease" in item) {
+          const p = item as { disease: string; confidence?: number; specialty?: string };
+          return { disease: p.disease, confidence: p.confidence ?? 1, specialty: p.specialty };
+        }
         return null;
       })
       .filter(Boolean) as PredictionItem[];
   }
-  if (typeof raw === "object" && raw.disease)
-    return [{ disease: raw.disease, confidence: raw.confidence ?? 1 }];
+  if (typeof raw === "object" && raw !== null && "disease" in raw) {
+    const p = raw as { disease: string; confidence?: number; specialty?: string };
+    return [{ disease: p.disease, confidence: p.confidence ?? 1, specialty: p.specialty }];
+  }
   return undefined;
 }

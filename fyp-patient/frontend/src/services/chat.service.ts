@@ -1,13 +1,18 @@
 import api from '@/services/api.service'
 
+export interface PredictionItem {
+  disease: string
+  confidence: number
+  specialty?: string
+}
+
 export interface ChatResponse {
   success: boolean
   sessionId?: string
   data: {
     message: string
     response?: string
-    prediction?: any
-    doctors?: any[]
+    prediction?: PredictionItem[]
     symptoms?: string[]
   }
 }

@@ -102,16 +102,44 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     })
 
     // Persist predictions if returned by n8n
-    const predictions: Array<{ disease: string; confidence: number }> = n8nData?.prediction || n8nData?.predictions || []
-    if (predictions.length > 0) {
-      for (const pred of predictions) {
-        const diseaseName = typeof pred === 'string' ? pred : pred.disease
-        const confidence = typeof pred === 'object' ? (pred.confidence ?? 1.0) : 1.0
+    // n8n may include a specialty per prediction: { disease, confidence, specialty }
+    const rawPredictions: Array<{ disease: string; confidence: number; specialty?: string }> =
+      n8nData?.prediction || n8nData?.predictions || []
 
-        let disease = await prisma.disease.findUnique({ where: { name: diseaseName } })
+    const normalizedPredictions = rawPredictions.map((p) =>
+      typeof p === 'string'
+        ? { disease: p, confidence: 1.0, specialty: undefined }
+        : { disease: p.disease, confidence: p.confidence ?? 1.0, specialty: p.specialty }
+    )
+
+    if (normalizedPredictions.length > 0) {
+      for (const pred of normalizedPredictions) {
+        // Resolve specialty if provided
+        let specialtyId: string | undefined
+        if (pred.specialty) {
+          let specialty = await prisma.specialty.findFirst({
+            where: { name: { equals: pred.specialty, mode: 'insensitive' } },
+          })
+          if (!specialty) {
+            specialty = await prisma.specialty.create({ data: { name: pred.specialty } })
+          }
+          specialtyId = specialty.id
+        }
+
+        // Find or create the disease; update recommendedSpecialty if we now have one
+        let disease = await prisma.disease.findUnique({ where: { name: pred.disease } })
         if (!disease) {
           disease = await prisma.disease.create({
-            data: { name: diseaseName, precautions: [] },
+            data: {
+              name: pred.disease,
+              precautions: [],
+              ...(specialtyId && { recommendedSpecialtyId: specialtyId }),
+            },
+          })
+        } else if (specialtyId && !disease.recommendedSpecialtyId) {
+          disease = await prisma.disease.update({
+            where: { id: disease.id },
+            data: { recommendedSpecialtyId: specialtyId },
           })
         }
 
@@ -119,7 +147,7 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
           data: {
             chatSessionId: session.id,
             diseaseId: disease.id,
-            confidence,
+            confidence: pred.confidence,
             inputSymptoms: n8nData?.symptoms || [],
           },
         })
@@ -155,8 +183,7 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
       sessionId: session.id,
       data: {
         message: responseMessage,
-        prediction: n8nData?.prediction || n8nData?.predictions,
-        doctors: n8nData?.doctors,
+        prediction: normalizedPredictions.length > 0 ? normalizedPredictions : undefined,
         symptoms: n8nData?.symptoms,
       },
     })
@@ -201,9 +228,12 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
       responseMessage = n8nData?.message || n8nData?.response || 'I received your message. How can I help you?'
     }
 
-    const rawPredictions: Array<{ disease: string; confidence: number }> = n8nData?.prediction || n8nData?.predictions || []
+    const rawPredictions: Array<{ disease: string; confidence: number; specialty?: string }> =
+      n8nData?.prediction || n8nData?.predictions || []
     const predictions = rawPredictions.map((p) =>
-      typeof p === 'string' ? { disease: p, confidence: 1.0 } : { disease: p.disease, confidence: p.confidence ?? 1.0 }
+      typeof p === 'string'
+        ? { disease: p, confidence: 1.0, specialty: undefined }
+        : { disease: p.disease, confidence: p.confidence ?? 1.0, specialty: p.specialty }
     )
 
     res.json({

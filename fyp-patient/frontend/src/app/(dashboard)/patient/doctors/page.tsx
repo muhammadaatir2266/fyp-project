@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, useCallback, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import api from "@/services/api.service";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   DollarSign,
   Calendar,
   Loader2,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -41,14 +42,21 @@ interface Doctor {
   workingDays: string[];
 }
 
-export default function DoctorsPage() {
-  const router = useRouter();
+function DoctorsContent() {
+  const searchParams = useSearchParams();
+  const specialtyFromUrl = searchParams.get("specialty") ?? "";
+
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [specialtyFilter, setSpecialtyFilter] = useState("");
+  const [specialtyFilter, setSpecialtyFilter] = useState(specialtyFromUrl);
   const [cityFilter, setCityFilter] = useState("");
   const [total, setTotal] = useState(0);
+
+  // Sync URL param into filter on first load (handles back-navigation too)
+  useEffect(() => {
+    setSpecialtyFilter(specialtyFromUrl);
+  }, [specialtyFromUrl]);
 
   const fetchDoctors = useCallback(async () => {
     setLoading(true);
@@ -80,6 +88,21 @@ export default function DoctorsPage() {
           {total > 0 ? `${total} verified doctors available` : "Search for doctors by name, specialty, or city"}
         </p>
       </div>
+
+      {/* Active specialty filter banner */}
+      {specialtyFromUrl && (
+        <div className="flex items-center gap-2 text-sm bg-primary/5 border border-primary/20 rounded-lg px-4 py-2.5">
+          <span className="text-muted-foreground">Filtering by specialty:</span>
+          <Badge variant="secondary" className="font-medium">{specialtyFromUrl}</Badge>
+          <Link
+            href="/patient/doctors"
+            className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <X className="h-3 w-3" />
+            Clear filter
+          </Link>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="grid gap-3 md:grid-cols-3">
@@ -171,5 +194,17 @@ export default function DoctorsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function DoctorsPage() {
+  return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <DoctorsContent />
+    </Suspense>
   );
 }
