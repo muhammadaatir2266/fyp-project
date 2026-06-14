@@ -44,6 +44,9 @@ importers:
       prisma:
         specifier: ^5.14.0
         version: 5.22.0
+      retell-sdk:
+        specifier: ^5.36.0
+        version: 5.36.0
       typescript:
         specifier: ^5.4.5
         version: 5.9.3
@@ -701,6 +704,9 @@ packages:
     resolution: {integrity: sha512-RfqAvLnMl313r7c9oclB1HhUEAezcpLjz95wFH4LVuhk9JF/r22qmVP9AMmOU4vMX7Q8pN8jwNg/CSpdFnMjTQ==}
     engines: {node: '>= 0.4'}
     hasBin: true
+
+  retell-sdk@5.36.0:
+    resolution: {integrity: sha512-ZnFFix2JFK6mXM5CfKOrAkyejDVSqedxSH6TH1sLvvTnJCKOZwu8waQMS2BnnXE4HVypBmMun1toX/+CoctQMQ==}
 
   rimraf@2.7.1:
     resolution: {integrity: sha512-uWjbaKIK3T1OSVptzX7Nl6PvQ3qAGtKEtVRjRuazjfL3Bx5eI409VZSqgND+4UNnmzLVdPj9FqFJNPqBZFve4w==}
@@ -1511,6 +1517,8 @@ snapshots:
       is-core-module: 2.16.1
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
+
+  retell-sdk@5.36.0: {}
 
   rimraf@2.7.1:
     dependencies:

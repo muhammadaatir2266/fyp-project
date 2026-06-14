@@ -129,6 +129,15 @@ export const vapiWebhook = async (req: Request, res: Response): Promise<void> =>
 
 export const retellWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
+    const retellSecret = process.env.RETELL_WEBHOOK_SECRET
+    if (retellSecret) {
+      const incoming = req.headers['x-retell-signature'] as string | undefined
+      if (!incoming || incoming !== retellSecret) {
+        res.status(401).json({ message: 'Unauthorized' })
+        return
+      }
+    }
+
     const body = req.body as RetellBody
     const eventType = body?.event
 
@@ -146,10 +155,16 @@ export const retellWebhook = async (req: Request, res: Response): Promise<void> 
       return
     }
 
+    // For web calls, metadata carries patientId and intentId; from_number will be absent
+    const patientId = metadata?.patientId as string | undefined
+    const intentId = metadata?.intentId as string | undefined
+    const isWebCall = !callObj?.from_number || callObj.from_number === ''
+    const callerPhone = isWebCall ? 'web' : (callObj?.from_number ?? 'unknown')
+
     await prisma.callLog.create({
       data: {
         doctorId,
-        callerPhone: callObj?.from_number ?? 'unknown',
+        callerPhone,
         callerName: (metadata?.callerName as string) ?? null,
         callType: 'INCOMING',
         status: callObj?.call_status === 'error' ? 'FAILED' : 'COMPLETED',
@@ -161,6 +176,10 @@ export const retellWebhook = async (req: Request, res: Response): Promise<void> 
         vapiCallId: callObj?.call_id ?? null,
       },
     })
+
+    if (patientId || intentId) {
+      console.info(`[retellWebhook] Web voice call logged — patientId=${patientId ?? 'n/a'} intentId=${intentId ?? 'n/a'} callId=${callObj?.call_id}`)
+    }
 
     res.json({ received: true, logged: true })
   } catch (error) {

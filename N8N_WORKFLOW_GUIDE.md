@@ -85,13 +85,82 @@ The calling agent handles **inbound calls** to a doctor's virtual number.
 |---------|----------|-------|
 | Patient API | `N8N_CHAT_WEBHOOK_URL` | n8n webhook URL |
 | Patient API | `ML_MODEL_API_URL` | `http://localhost:8000` |
+| Patient API | `RETELL_API_KEY` | Retell API key |
+| Patient API | `RETELL_AGENT_ID` | Retell voice agent ID |
 | Admin API | `ML_SERVICE_URL` | `http://localhost:8000` |
 | Doctor API | `VAPI_WEBHOOK_SECRET` | VAPI webhook secret |
+| Doctor API | `RETELL_WEBHOOK_SECRET` | Retell webhook signature secret |
 | n8n HTTP node | Auth | Internal API token from admin panel |
 
 ---
 
-## 4. ML Service API (Already Built)
+## 4. Retell AI Voice Assistant Setup
+
+The "AI Assistant" button on the doctor cards opens an in-browser Retell voice call. No real phone line is needed.
+
+### 4.1 Retell Dashboard Configuration
+
+1. **Create an agent** in the [Retell Dashboard](https://dashboard.retellai.com/).
+2. Copy the **Agent ID** and paste it into `fyp-patient/backend/.env` as `RETELL_AGENT_ID`.
+3. Copy an **API Key** and paste it as `RETELL_API_KEY`.
+4. Set the **Webhook URL** to `https://<doctor-backend>/api/webhooks/retell`.
+
+### 4.2 Agent Dynamic Variables
+
+The patient backend passes these variables when registering a web call.  
+Add them to your agent's **LLM prompt** using `{{variable_name}}` syntax:
+
+| Variable | Example value | Purpose |
+|----------|---------------|---------|
+| `patient_id` | `uuid-...` | Identifies the patient for booking |
+| `intent_id` | `uuid-...` | Booking intent ID (use in `book_appointment` call) |
+| `doctor_id` | `uuid-...` | Doctor to book with |
+| `patient_name` | `John Doe` | Greet the patient by name |
+| `doctor_name` | `Dr. Ahmed Khan` | Tell the patient who they're booking with |
+| `doctor_specialty` | `Cardiology` | Context for the agent |
+
+**Example prompt snippet:**
+```
+You are a medical booking assistant. You are scheduling an appointment with {{doctor_name}} ({{doctor_specialty}}) for {{patient_name}}. Do not ask for the patient's name — you already know it.
+```
+
+### 4.3 Agent Custom Functions (Admin API Tools)
+
+Configure these **custom functions** in the Retell agent, authenticated with `Authorization: Bearer <API_TOKEN>` from the admin panel.
+
+| Function | Method | URL |
+|----------|--------|-----|
+| `get_available_slots` | GET | `https://<admin-backend>/api/v1/doctors/{{doctor_id}}/slots?date={date}` |
+| `check_availability` | GET | `https://<admin-backend>/api/v1/doctors/{{doctor_id}}/availability?date={date}&time={time}` |
+| `book_appointment` | POST | `https://<admin-backend>/api/v1/doctors/{{doctor_id}}/appointments` |
+
+#### `book_appointment` request body for web voice calls:
+```json
+{
+  "patientId": "{{patient_id}}",
+  "intentId": "{{intent_id}}",
+  "patientName": "{{patient_name}}",
+  "date": "2026-06-15",
+  "time": "10:00",
+  "reason": "Booked via voice assistant"
+}
+```
+
+Sending `patientId` or `intentId` skips temp-patient creation and links the appointment directly to the logged-in patient. The intent is consumed on first use.
+
+### 4.4 Required Environment Variables
+
+```
+# fyp-patient/backend/.env
+RETELL_API_KEY=key_xxxxxxxxxxxx
+RETELL_AGENT_ID=agent_xxxxxxxxxxxx
+```
+
+> `RETELL_PHONE_NUMBER` is no longer used — remove it if present.
+
+---
+
+## 5. ML Service API (Already Built)
 
 Running at `http://localhost:8000`.
 

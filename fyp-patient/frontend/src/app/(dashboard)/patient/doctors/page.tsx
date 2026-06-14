@@ -38,8 +38,11 @@ import {
   Languages,
   ThumbsUp,
   SlidersHorizontal,
+  Phone,
+  PhoneCall,
 } from "lucide-react";
 import Link from "next/link";
+import { VoiceCallModal } from "@/components/voice/VoiceCallModal";
 
 const RADIUS_OPTIONS = [5, 10, 25, 50];
 const LANGUAGE_OPTIONS = ["English", "Urdu", "Punjabi", "Sindhi", "Pashto", "Balochi"];
@@ -52,6 +55,7 @@ interface Doctor {
   specialty: { id: string; name: string };
   gender?: string;
   languages?: string[];
+  phone?: string;
   city: string;
   qualifications: string;
   experience: number;
@@ -69,6 +73,36 @@ interface Doctor {
   recencyRating?: number | null;
   lastReviewAt?: string | null;
   reliabilityScore?: number | null;
+}
+
+interface BookingConfig {
+  callBookingEnabled: boolean;
+}
+
+interface VoiceCallSession {
+  accessToken: string;
+  doctorName: string;
+  doctorSpecialty: string;
+  patientName: string;
+}
+
+function buildBookingUrl(
+  doctorId: string,
+  doctorName: string,
+  nextAvailableAt?: string | null
+): string {
+  const params = new URLSearchParams({
+    doctorId,
+    doctorName,
+  });
+  if (nextAvailableAt) {
+    const d = new Date(nextAvailableAt);
+    const date = d.toISOString().split("T")[0];
+    const slot = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    params.set("date", date);
+    params.set("slot", slot);
+  }
+  return `/patient/appointments?${params.toString()}`;
 }
 
 function StarRow({ rating, count }: { rating: number; count: number }) {
@@ -216,10 +250,21 @@ function DoctorsContent() {
   const [radiusKm, setRadiusKm] = useState(25);
   const [nearbyEnabled, setNearbyEnabled] = useState(nearbyFromUrl);
 
+  // Booking config
+  const [bookingConfig, setBookingConfig] = useState<BookingConfig>({ callBookingEnabled: false });
+  const [callIntentLoading, setCallIntentLoading] = useState<string | null>(null);
+  const [voiceSession, setVoiceSession] = useState<VoiceCallSession | null>(null);
+
   const [reviewsDoctor, setReviewsDoctor] = useState<Doctor | null>(null);
   const locationInitialized = useRef(false);
 
   useEffect(() => { setSpecialtyFilter(specialtyFromUrl); }, [specialtyFromUrl]);
+
+  useEffect(() => {
+    api.get("/config/booking")
+      .then((r) => setBookingConfig(r.data))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (locationInitialized.current) return;
@@ -239,6 +284,26 @@ function DoctorsContent() {
     } else {
       setLocationMode("city");
       setCityFilter(loc.city);
+    }
+  }
+
+  async function handleCallAI(doctor: Doctor) {
+    setCallIntentLoading(doctor.id);
+    try {
+      const res = await api.post("/appointments/voice-call", { doctorId: doctor.id });
+      setVoiceSession({
+        accessToken: res.data.accessToken,
+        doctorName: res.data.doctorName,
+        doctorSpecialty: res.data.doctorSpecialty,
+        patientName: res.data.patientName,
+      });
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { error?: string } } })?.response?.data?.error ??
+        "Could not start voice call. Please try again or book online.";
+      alert(msg);
+    } finally {
+      setCallIntentLoading(null);
     }
   }
 
@@ -585,16 +650,18 @@ function DoctorsContent() {
                     )}
                   </div>
 
-                  {/* Availability */}
-                  {nextSlot && (
-                    <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                  {/* Availability — clickable next slot */}
+                  {nextSlot ? (
+                    <Link
+                      href={buildBookingUrl(doctor.id, `Dr. ${doctor.fullName}`, doctor.nextAvailableAt)}
+                      className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1 hover:underline w-fit"
+                    >
                       <Calendar className="h-3.5 w-3.5" />
                       Next slot: {nextSlot}
-                    </p>
-                  )}
-                  {!nextSlot && doctor.workingDays?.length > 0 && (
+                    </Link>
+                  ) : doctor.workingDays?.length > 0 ? (
                     <p className="text-xs text-muted-foreground">No slots available this week</p>
-                  )}
+                  ) : null}
 
                   {/* Languages */}
                   {doctor.languages && doctor.languages.length > 0 && (
@@ -606,15 +673,43 @@ function DoctorsContent() {
                     </div>
                   )}
 
-                  <div className="flex gap-2 pt-1">
-                    <Button size="sm" variant="outline" className="flex-1" asChild>
-                      <Link href={`/patient/appointments?doctorId=${doctor.id}&doctorName=${encodeURIComponent('Dr. ' + doctor.fullName)}`}>
+                  {/* CTA row */}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <Button size="sm" className="flex-1 min-w-0" asChild>
+                      <Link href={buildBookingUrl(doctor.id, `Dr. ${doctor.fullName}`, doctor.nextAvailableAt)}>
                         <Calendar className="mr-1.5 h-3.5 w-3.5" />
-                        Book Appointment
+                        Book Online
                       </Link>
                     </Button>
+
+                    {doctor.phone && (
+                      <Button size="sm" variant="outline" className="gap-1.5" asChild>
+                        <a href={`tel:${doctor.phone}`}>
+                          <Phone className="h-3.5 w-3.5" />
+                          Call Clinic
+                        </a>
+                      </Button>
+                    )}
+
+                    {bookingConfig.callBookingEnabled && (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        className="gap-1.5"
+                        onClick={() => handleCallAI(doctor)}
+                        disabled={callIntentLoading === doctor.id}
+                      >
+                        {callIntentLoading === doctor.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <PhoneCall className="h-3.5 w-3.5" />
+                        )}
+                        AI Assistant
+                      </Button>
+                    )}
+
                     {doctor.reviewCount > 0 && (
-                      <Button size="sm" variant="ghost" className="gap-1 text-xs" onClick={() => setReviewsDoctor(doctor)}>
+                      <Button size="sm" variant="ghost" className="gap-1 text-xs px-2" onClick={() => setReviewsDoctor(doctor)}>
                         <Star className="h-3.5 w-3.5" />
                         Reviews
                         <ChevronRight className="h-3.5 w-3.5" />
@@ -633,6 +728,16 @@ function DoctorsContent() {
         open={!!reviewsDoctor}
         onClose={() => setReviewsDoctor(null)}
       />
+
+      {voiceSession && (
+        <VoiceCallModal
+          accessToken={voiceSession.accessToken}
+          doctorName={voiceSession.doctorName}
+          doctorSpecialty={voiceSession.doctorSpecialty}
+          patientName={voiceSession.patientName}
+          onClose={() => setVoiceSession(null)}
+        />
+      )}
     </div>
   );
 }

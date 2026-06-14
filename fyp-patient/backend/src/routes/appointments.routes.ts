@@ -4,6 +4,8 @@ import {
   bookAppointment,
   getAppointmentById,
   updateAppointment,
+  createVoiceCall,
+  createCallIntent,
 } from '../controllers/appointments.controller'
 import { authenticateToken } from '../middleware/auth.middleware'
 
@@ -13,6 +15,8 @@ router.use(authenticateToken)
 
 router.get('/', getAppointments)
 router.post('/', bookAppointment)
+router.post('/voice-call', createVoiceCall)
+router.post('/call-intent', createCallIntent) // backward compat alias
 router.get('/:id', getAppointmentById)
 router.patch('/:id', updateAppointment)
 

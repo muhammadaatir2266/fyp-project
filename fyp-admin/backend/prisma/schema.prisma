@@ -152,10 +152,11 @@ model Patient {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  appointments     Appointment[]
-  patientSymptoms  PatientSymptom[]
-  chatSessions     ChatSession[]
-  reviews          DoctorReview[]
+  appointments      Appointment[]
+  patientSymptoms   PatientSymptom[]
+  chatSessions      ChatSession[]
+  reviews           DoctorReview[]
+  callBookingIntents CallBookingIntent[]
 }
 
 model Doctor {
@@ -203,9 +204,10 @@ model Doctor {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  appointments     Appointment[]
-  callLogs         CallLog[]
-  reviews          DoctorReview[]
+  appointments      Appointment[]
+  callLogs          CallLog[]
+  reviews           DoctorReview[]
+  callBookingIntents CallBookingIntent[]
 }
 
 model Specialty {
@@ -363,4 +365,19 @@ model CallLog {
   vapiCallId  String?
 
   createdAt   DateTime   @default(now())
+}
+
+model CallBookingIntent {
+  id           String   @id @default(uuid())
+  patientId    String
+  patient      Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctorId     String
+  doctor       Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  phone        String?
+  retellCallId String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@index([phone, expiresAt])
+  @@index([patientId, doctorId, expiresAt])
 }

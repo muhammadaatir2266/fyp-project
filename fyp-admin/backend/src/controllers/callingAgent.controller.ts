@@ -225,7 +225,19 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
 export const bookAppointment = async (req: Request, res: Response): Promise<void> => {
   try {
     const doctorId = req.params.doctorId as string
-    const { patientName, patientPhone, patientEmail, date, time, reason, duration = 30 } = req.body as {
+    const {
+      patientId: rawPatientId,
+      intentId,
+      patientName,
+      patientPhone,
+      patientEmail,
+      date,
+      time,
+      reason,
+      duration = 30,
+    } = req.body as {
+      patientId?: string
+      intentId?: string
       patientName?: string
       patientPhone?: string
       patientEmail?: string
@@ -235,8 +247,18 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
       duration?: number | string
     }
 
-    if (!patientName || !patientPhone || !date || !time) {
-      res.status(400).json({ success: false, message: 'Missing required fields: patientName, patientPhone, date, time' })
+    if (!date || !time) {
+      res.status(400).json({ success: false, message: 'Missing required fields: date, time' })
+      return
+    }
+
+    // At least one patient identifier must be present
+    const hasIdentifier = rawPatientId || intentId || (patientName && patientPhone)
+    if (!hasIdentifier) {
+      res.status(400).json({
+        success: false,
+        message: 'Provide patientId, intentId, or both patientName + patientPhone',
+      })
       return
     }
 
@@ -252,7 +274,42 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
 
     let patient = null
 
-    if (patientEmail) {
+    // Priority 1: direct patientId (web voice — logged-in patient)
+    if (rawPatientId) {
+      patient = await prisma.patient.findUnique({ where: { id: rawPatientId } })
+    }
+
+    // Priority 2: intentId — web voice call-booking intent
+    if (!patient && intentId) {
+      const intent = await prisma.callBookingIntent.findFirst({
+        where: { id: intentId, doctorId, expiresAt: { gt: new Date() } },
+        include: { patient: true },
+      })
+      if (intent) {
+        patient = intent.patient
+        await prisma.callBookingIntent.delete({ where: { id: intent.id } })
+      }
+    }
+
+    // Priority 3: phone-based intent match (legacy PSTN fallback)
+    if (!patient && patientPhone) {
+      const normalizedPhone = patientPhone.replace(/\D/g, '')
+      const phoneIntent = await prisma.callBookingIntent.findFirst({
+        where: { doctorId, expiresAt: { gt: new Date() } },
+        include: { patient: true },
+        orderBy: { createdAt: 'desc' },
+      })
+      if (phoneIntent?.phone) {
+        const intentPhone = phoneIntent.phone.replace(/\D/g, '')
+        if (intentPhone === normalizedPhone) {
+          patient = phoneIntent.patient
+          await prisma.callBookingIntent.delete({ where: { id: phoneIntent.id } })
+        }
+      }
+    }
+
+    // Priority 4: email lookup
+    if (!patient && patientEmail) {
       const existingUser = await prisma.user.findUnique({
         where: { email: patientEmail },
         include: { patient: true },
@@ -260,11 +317,17 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
       if (existingUser?.patient) patient = existingUser.patient
     }
 
-    if (!patient) {
+    // Priority 5: phone lookup
+    if (!patient && patientPhone) {
       patient = await prisma.patient.findFirst({ where: { phone: patientPhone } })
     }
 
+    // Priority 6: create temp patient (PSTN only — never reached for web voice)
     if (!patient) {
+      if (!patientName || !patientPhone) {
+        res.status(400).json({ success: false, message: 'Could not identify patient. Provide patientId or intentId.' })
+        return
+      }
       const [firstName, ...lastNameParts] = patientName.trim().split(' ')
       const lastName = lastNameParts.join(' ') || firstName
 
@@ -289,7 +352,7 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
         duration: parseInt(String(duration)),
         status: 'PENDING',
         source: 'CALLING_AGENT',
-        reason: reason ?? 'Phone consultation',
+        reason: reason ?? 'Booked via voice assistant',
       },
       include: { patient: true, doctor: { include: { specialty: true } } },
     })

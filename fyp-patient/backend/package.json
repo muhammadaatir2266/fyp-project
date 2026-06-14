@@ -22,6 +22,7 @@
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
+    "@types/node": "^20.12.12",
     "axios": "^1.7.2",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -31,11 +32,11 @@
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
     "openai": "^4.47.1",
-    "uuid": "^9.0.1",
-    "zod": "^3.23.8",
-    "typescript": "^5.4.5",
     "prisma": "^5.14.0",
-    "@types/node": "^20.12.12"
+    "retell-sdk": "^5.36.0",
+    "typescript": "^5.4.5",
+    "uuid": "^9.0.1",
+    "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

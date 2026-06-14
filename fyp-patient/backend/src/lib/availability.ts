@@ -98,3 +98,63 @@ export function buildBookedMap(scheduledAts: Date[]): Map<string, Set<string>> {
   }
   return map
 }
+
+export interface SlotValidationResult {
+  valid: boolean
+  error?: string
+}
+
+/**
+ * Validate that a requested scheduledAt time is a bookable slot.
+ * Checks: not in past, working day, not on unavailableDates,
+ * within availableFrom/availableTo, slot not already booked.
+ *
+ * @param doctor             Doctor schedule fields
+ * @param scheduledAt        The requested appointment time
+ * @param bookedTimesForDay  Set of already-booked HH:MM strings for that day
+ * @param excludeApptId      Optional appointment ID to exclude (for reschedule)
+ */
+export function validateScheduledSlot(
+  doctor: DoctorSchedule,
+  scheduledAt: Date,
+  bookedTimesForDay: Set<string>,
+  excludeApptId?: string,
+): SlotValidationResult {
+  const now = new Date()
+  if (scheduledAt <= now) {
+    return { valid: false, error: 'Appointment time must be in the future.' }
+  }
+
+  const dayName = scheduledAt.toLocaleDateString('en-US', { weekday: 'long' })
+  if (!doctor.workingDays.includes(dayName)) {
+    return { valid: false, error: `Doctor is not available on ${dayName}s.` }
+  }
+
+  const dateStr = scheduledAt.toISOString().split('T')[0]
+  if (doctor.unavailableDates?.includes(dateStr)) {
+    return { valid: false, error: 'Doctor is unavailable on this date.' }
+  }
+
+  const fromHour = parseInt((doctor.availableFrom ?? '09:00').split(':')[0])
+  const toHour = parseInt((doctor.availableTo ?? '17:00').split(':')[0])
+  const slotHour = scheduledAt.getHours()
+  const slotMin = scheduledAt.getMinutes()
+
+  if (slotHour < fromHour || slotHour >= toHour) {
+    return {
+      valid: false,
+      error: `Doctor is only available between ${doctor.availableFrom ?? '09:00'} and ${doctor.availableTo ?? '17:00'}.`,
+    }
+  }
+
+  if (slotMin !== 0 && slotMin !== 30) {
+    return { valid: false, error: 'Slots must be on the hour or half-hour.' }
+  }
+
+  const slotStr = `${String(slotHour).padStart(2, '0')}:${String(slotMin).padStart(2, '0')}`
+  if (bookedTimesForDay.has(slotStr)) {
+    return { valid: false, error: 'This slot is already booked.' }
+  }
+
+  return { valid: true }
+}

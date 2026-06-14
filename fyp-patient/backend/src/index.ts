@@ -12,6 +12,7 @@ import appointmentsRoutes from './routes/appointments.routes'
 import profileRoutes from './routes/profile.routes'
 import symptomsRoutes from './routes/symptoms.routes'
 import reviewsRoutes from './routes/reviews.routes'
+import configRoutes from './routes/config.routes'
 
 dotenv.config()
 
@@ -48,6 +49,7 @@ app.use('/api/appointments', appointmentsRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/symptoms', symptomsRoutes)
 app.use('/api/reviews', reviewsRoutes)
+app.use('/api/config', configRoutes)
 
 app.use(notFound)
 app.use(errorHandler)
