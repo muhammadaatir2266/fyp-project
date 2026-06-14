@@ -37,7 +37,7 @@ async function main() {
   const patientPw = await bcrypt.hash('patient123', 10)
 
   // ---- Admin ----
-  const adminUser = await prisma.user.upsert({
+  await prisma.user.upsert({
     where: { email: 'admin@mediassist.com' },
     update: {},
     create: {
@@ -57,7 +57,7 @@ async function main() {
   })
   console.log('✅ Seeded admin: admin@mediassist.com / admin123')
 
-  // ---- Demo doctors ----
+  // ---- Demo doctors — start with rating 0; reviews will recalculate ----
   const demoDocInfo = [
     {
       email: 'doctor@mediassist.com',
@@ -66,7 +66,6 @@ async function main() {
       phone: '+92-21-3456789',   address: '123 Medical Center Drive',
       qualifications: 'MD, FACC - Board Certified Cardiologist',
       experience: 15, consultationFee: 2000,
-      rating: 4.8, reviewCount: 127,
     },
     {
       email: 'doctor2@mediassist.com',
@@ -75,7 +74,6 @@ async function main() {
       phone: '+92-42-1234567',   address: '45 Gulberg III',
       qualifications: 'MBBS, FCPS - General Physician',
       experience: 8,  consultationFee: 1500,
-      rating: 4.6, reviewCount: 89,
     },
     {
       email: 'doctor3@mediassist.com',
@@ -84,7 +82,6 @@ async function main() {
       phone: '+92-51-9876543',   address: '78 F-7 Markaz',
       qualifications: 'MBBS, FCPS - Dermatologist',
       experience: 10, consultationFee: 2500,
-      rating: 4.9, reviewCount: 203,
     },
     {
       email: 'doctor4@mediassist.com',
@@ -93,7 +90,6 @@ async function main() {
       phone: '+92-21-8765432',   address: '22 Clifton Block 4',
       qualifications: 'MD, Neurology - Aga Khan Hospital',
       experience: 12, consultationFee: 3000,
-      rating: 4.7, reviewCount: 156,
     },
     {
       email: 'doctor5@mediassist.com',
@@ -102,7 +98,6 @@ async function main() {
       phone: '+92-42-5678901',   address: '10 DHA Phase 5',
       qualifications: 'MBBS, DCH - Pediatrician',
       experience: 7,  consultationFee: 1800,
-      rating: 4.5, reviewCount: 74,
     },
     {
       email: 'doctor6@mediassist.com',
@@ -111,7 +106,6 @@ async function main() {
       phone: '+92-51-3214567',   address: '33 Blue Area',
       qualifications: 'MBBS, FRCS - Orthopedic Surgeon',
       experience: 18, consultationFee: 3500,
-      rating: 4.8, reviewCount: 312,
     },
     {
       email: 'doctor7@mediassist.com',
@@ -120,13 +114,13 @@ async function main() {
       phone: '+92-21-2233445',   address: '56 PECHS Block 2',
       qualifications: 'MBBS, FCPS - Gastroenterologist',
       experience: 9,  consultationFee: 2200,
-      rating: 4.6, reviewCount: 98,
     },
   ]
 
+  const doctorRecords: Array<{ id: string; email: string }> = []
   for (const d of demoDocInfo) {
     const pw = await bcrypt.hash('doctor123', 10)
-    await prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { email: d.email },
       update: {},
       create: {
@@ -150,16 +144,21 @@ async function main() {
             isActive: true,
             isVerified: true,
             verificationStatus: DoctorVerificationStatus.APPROVED,
-            rating: d.rating,
-            reviewCount: d.reviewCount,
+            // rating and reviewCount start at 0 — recalculated from real reviews below
+            rating: 0,
+            reviewCount: 0,
           },
         },
       },
+      include: { doctor: { select: { id: true } } },
     })
+    if (user.doctor) {
+      doctorRecords.push({ id: user.doctor.id, email: d.email })
+    }
   }
   console.log('✅ Seeded 7 demo doctors (all APPROVED & active)')
 
-  // ---- Demo patients ----
+  // ---- Demo patient ----
   const patientUser = await prisma.user.upsert({
     where: { email: 'patient@mediassist.com' },
     update: {},
@@ -182,8 +181,117 @@ async function main() {
         },
       },
     },
+    include: { patient: { select: { id: true } } },
   })
   console.log('✅ Seeded patient: patient@mediassist.com / patient123')
+
+  const patientId = patientUser.patient?.id
+  if (!patientId) {
+    console.log('⚠️  Could not resolve patientId — skipping sample reviews')
+  } else {
+    // ---- Sample completed appointments + reviews for the first 4 demo doctors ----
+    const sampleReviews: Array<{ doctorEmail: string; ratings: number[]; comments: Array<string | null> }> = [
+      {
+        doctorEmail: 'doctor@mediassist.com',
+        ratings: [5, 5, 4, 5, 4],
+        comments: [
+          'Excellent cardiologist, very thorough.',
+          'Explained everything clearly. Highly recommend.',
+          'Great doctor, though waiting time was long.',
+          'Very professional and knowledgeable.',
+          null,
+        ],
+      },
+      {
+        doctorEmail: 'doctor2@mediassist.com',
+        ratings: [4, 4, 5, 3, 4],
+        comments: [
+          'Good general physician. Listens patiently.',
+          'Helpful and prompt.',
+          'Best GP I have visited. Very thorough examination.',
+          'Decent doctor but clinic needs improvement.',
+          'Would visit again.',
+        ],
+      },
+      {
+        doctorEmail: 'doctor3@mediassist.com',
+        ratings: [5, 5, 5, 4, 5],
+        comments: [
+          'Amazing dermatologist. Resolved my issue in 2 visits.',
+          'Very knowledgeable and friendly.',
+          'Highly skilled. Results were great.',
+          'Excellent treatment, minor wait time.',
+          'Best dermatologist in Islamabad.',
+        ],
+      },
+      {
+        doctorEmail: 'doctor6@mediassist.com',
+        ratings: [5, 4, 5, 5, 4, 5],
+        comments: [
+          'Outstanding surgeon. My knee recovery was smooth.',
+          'Very experienced orthopedic specialist.',
+          'Explained all options before surgery. Excellent.',
+          'Highly recommend for any joint issues.',
+          'Good but fees are high.',
+          'World-class orthopedic care.',
+        ],
+      },
+    ]
+
+    let reviewsCreated = 0
+
+    for (const sample of sampleReviews) {
+      const doctorRecord = doctorRecords.find((d) => d.email === sample.doctorEmail)
+      if (!doctorRecord) continue
+
+      for (let i = 0; i < sample.ratings.length; i++) {
+        // Create a COMPLETED appointment
+        const appointment = await prisma.appointment.create({
+          data: {
+            patientId,
+            doctorId: doctorRecord.id,
+            scheduledAt: new Date(Date.now() - (i + 1) * 7 * 24 * 60 * 60 * 1000), // weeks ago
+            duration: 30,
+            status: 'COMPLETED',
+            source: 'PATIENT_APP',
+          },
+        })
+
+        // Check if review already exists (idempotency on re-seed)
+        const existingReview = await prisma.doctorReview.findUnique({
+          where: { appointmentId: appointment.id },
+        })
+        if (!existingReview) {
+          await prisma.doctorReview.create({
+            data: {
+              appointmentId: appointment.id,
+              patientId,
+              doctorId: doctorRecord.id,
+              rating: sample.ratings[i],
+              comment: sample.comments[i] ?? null,
+            },
+          })
+          reviewsCreated++
+        }
+      }
+
+      // Recalculate rating from reviews
+      const agg = await prisma.doctorReview.aggregate({
+        where: { doctorId: doctorRecord.id },
+        _avg: { rating: true },
+        _count: { rating: true },
+      })
+      await prisma.doctor.update({
+        where: { id: doctorRecord.id },
+        data: {
+          rating: Math.round((agg._avg.rating ?? 0) * 10) / 10,
+          reviewCount: agg._count.rating,
+        },
+      })
+    }
+
+    console.log(`✅ Created ${reviewsCreated} sample reviews with real rating recalculation`)
+  }
 
   console.log('\n🎉 Database seeding completed successfully!')
   console.log('\n📋 Sample Login Credentials:')

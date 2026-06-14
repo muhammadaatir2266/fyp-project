@@ -19,6 +19,7 @@ import {
   changePassword,
   updateNotificationSettings,
 } from '../controllers/doctor.controller'
+import { getMyReviews } from '../controllers/reviews.controller'
 
 const router: Router = Router()
 
@@ -53,6 +54,9 @@ router.put('/availability', updateAvailability)
 // Profile
 router.get('/profile', getProfile)
 router.put('/profile', updateProfile)
+
+// Reviews
+router.get('/reviews', getMyReviews)
 
 // Settings
 router.put('/settings/password', changePassword)

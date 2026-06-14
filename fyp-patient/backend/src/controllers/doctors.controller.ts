@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma'
 
 export const getDoctors = async (req: Request, res: Response) => {
   try {
-    const { specialty, city, name, page = '1', limit = '20' } = req.query as Record<string, string>
+    const { specialty, city, name, minRating, page = '1', limit = '20' } = req.query as Record<string, string>
     const pageNum = Math.max(1, parseInt(page))
     const limitNum = Math.min(50, Math.max(1, parseInt(limit)))
     const skip = (pageNum - 1) * limitNum
@@ -27,19 +27,67 @@ export const getDoctors = async (req: Request, res: Response) => {
       ]
     }
 
+    // Compute global average rating for Bayesian weighting
+    const globalAgg = await prisma.doctorReview.aggregate({ _avg: { rating: true } })
+    const globalAvg = globalAgg._avg.rating ?? 3.5
+
     const [doctors, total] = await Promise.all([
       prisma.doctor.findMany({
         where,
-        include: { specialty: true },
-        orderBy: [{ rating: 'desc' }, { experience: 'desc' }],
+        include: {
+          specialty: true,
+          _count: {
+            select: {
+              appointments: { where: { status: 'COMPLETED' } },
+            },
+          },
+        },
         skip,
         take: limitNum,
       }),
       prisma.doctor.count({ where }),
     ])
 
+    // Apply trust-weighted ranking in JS (page size is small, so this is fine)
+    const ranked = doctors
+      .map((doc) => {
+        const isPlatformVerified =
+          doc.verificationStatus === 'APPROVED' && doc.isVerified && doc.verifiedAt !== null
+        const completedAppointmentsCount = doc._count.appointments
+        // Bayesian-weighted rating: pulls low-review-count doctors toward global average
+        const weighted =
+          (doc.reviewCount * doc.rating + 3 * globalAvg) / (doc.reviewCount + 3)
+        return { doc, isPlatformVerified, completedAppointmentsCount, weighted }
+      })
+      .filter(({ doc }) => {
+        if (minRating) {
+          const min = parseFloat(minRating)
+          const w = (doc.reviewCount * doc.rating + 3 * globalAvg) / (doc.reviewCount + 3)
+          return w >= min
+        }
+        return true
+      })
+      .sort((a, b) => {
+        // 1. Platform verified first
+        if (a.isPlatformVerified !== b.isPlatformVerified) {
+          return a.isPlatformVerified ? -1 : 1
+        }
+        // 2. Bayesian weighted rating
+        if (Math.abs(a.weighted - b.weighted) > 0.01) return b.weighted - a.weighted
+        // 3. Review count
+        if (a.doc.reviewCount !== b.doc.reviewCount) return b.doc.reviewCount - a.doc.reviewCount
+        // 4. Completed appointments
+        if (a.completedAppointmentsCount !== b.completedAppointmentsCount) {
+          return b.completedAppointmentsCount - a.completedAppointmentsCount
+        }
+        // 5. Experience
+        return b.doc.experience - a.doc.experience
+      })
+
     res.json({
-      doctors: doctors.map(formatDoctor),
+      doctors: ranked.map(({ doc, isPlatformVerified, completedAppointmentsCount }) =>
+        formatDoctor(doc, isPlatformVerified, completedAppointmentsCount)
+      ),
       total,
       page: pageNum,
       totalPages: Math.ceil(total / limitNum),
@@ -55,14 +103,36 @@ export const getDoctorById = async (req: Request, res: Response) => {
     const { id } = req.params
     const doctor = await prisma.doctor.findFirst({
       where: { id, isActive: true, isVerified: true },
-      include: { specialty: true },
+      include: {
+        specialty: true,
+        _count: { select: { appointments: { where: { status: 'COMPLETED' } } } },
+      },
     })
 
     if (!doctor) {
       return res.status(404).json({ error: 'Doctor not found' })
     }
 
-    res.json(formatDoctor(doctor))
+    const isPlatformVerified =
+      doctor.verificationStatus === 'APPROVED' && doctor.isVerified && doctor.verifiedAt !== null
+
+    const recentReviews = await prisma.doctorReview.findMany({
+      where: { doctorId: id },
+      orderBy: { createdAt: 'desc' },
+      take: 3,
+      include: { patient: { select: { firstName: true } } },
+    })
+
+    res.json({
+      ...formatDoctor(doctor, isPlatformVerified, doctor._count.appointments),
+      recentReviews: recentReviews.map((r) => ({
+        id: r.id,
+        rating: r.rating,
+        comment: r.comment,
+        createdAt: r.createdAt,
+        patientInitial: r.patient.firstName.charAt(0).toUpperCase() + '.',
+      })),
+    })
   } catch (error) {
     console.error('Get doctor error:', error)
     res.status(500).json({ error: 'Failed to fetch doctor' })
@@ -100,14 +170,12 @@ export const getDoctorSlots = async (req: Request, res: Response) => {
     const fromHour = parseInt((doctor.availableFrom || '09:00').split(':')[0])
     const toHour = parseInt((doctor.availableTo || '17:00').split(':')[0])
 
-    // Build 30-minute slots
     const allSlots: string[] = []
     for (let h = fromHour; h < toHour; h++) {
       allSlots.push(`${String(h).padStart(2, '0')}:00`)
       allSlots.push(`${String(h).padStart(2, '0')}:30`)
     }
 
-    // Remove already-booked slots
     const booked = await prisma.appointment.findMany({
       where: {
         doctorId: id,
@@ -134,7 +202,7 @@ export const getDoctorSlots = async (req: Request, res: Response) => {
   }
 }
 
-function formatDoctor(doctor: any) {
+function formatDoctor(doctor: any, isPlatformVerified: boolean, completedAppointmentsCount: number) {
   return {
     id: doctor.id,
     firstName: doctor.firstName,
@@ -155,5 +223,7 @@ function formatDoctor(doctor: any) {
     availableFrom: doctor.availableFrom,
     availableTo: doctor.availableTo,
     workingDays: doctor.workingDays,
+    isPlatformVerified,
+    completedAppointmentsCount,
   }
 }

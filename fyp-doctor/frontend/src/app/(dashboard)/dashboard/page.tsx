@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Calendar, Users, Phone, Activity, Clock } from "lucide-react";
+import { Calendar, Users, Phone, Activity, Clock, Star } from "lucide-react";
 import { motion } from "framer-motion";
 import { StatsCard } from "@/components/dashboard/StatsCard";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,7 @@ export default function DashboardPage() {
   const [todayAppointments, setTodayAppointments] = useState<Appointment[]>([]);
   const [recentCalls, setRecentCalls] = useState<CallLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [reviewSummary, setReviewSummary] = useState<{ avgRating: number | null; total: number; reviews: Array<{ id: string; rating: number; comment: string | null; createdAt: string; patientInitial: string }> } | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
@@ -45,15 +46,17 @@ export default function DashboardPage() {
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, appointmentsRes, callsRes] = await Promise.all([
+      const [statsRes, appointmentsRes, callsRes, reviewsRes] = await Promise.all([
         api.get("/doctor/dashboard/stats"),
         api.get("/doctor/dashboard/appointments/today"),
         api.get("/doctor/dashboard/calls/recent"),
+        api.get("/doctor/reviews", { params: { limit: 3 } }),
       ]);
 
       setStats(statsRes.data);
       setTodayAppointments(appointmentsRes.data);
       setRecentCalls(callsRes.data);
+      setReviewSummary(reviewsRes.data);
     } catch (error) {
       console.error("Failed to fetch dashboard data:", error);
     } finally {
@@ -262,6 +265,57 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </motion.div>
+
+        {/* Patient Reviews */}
+        {reviewSummary && (reviewSummary.total > 0) && (
+          <motion.div variants={item} className="md:col-span-2">
+            <Card className="hover:shadow-lg transition-shadow duration-300">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Patient Reviews</CardTitle>
+                    <CardDescription>
+                      {reviewSummary.avgRating !== null
+                        ? `${reviewSummary.avgRating.toFixed(1)} avg rating · ${reviewSummary.total} review${reviewSummary.total !== 1 ? "s" : ""}`
+                        : `${reviewSummary.total} review${reviewSummary.total !== 1 ? "s" : ""}`}
+                    </CardDescription>
+                  </div>
+                  <div className="flex items-center gap-1 text-amber-500">
+                    <Star className="h-5 w-5 fill-current" />
+                    <span className="text-lg font-bold text-foreground">
+                      {reviewSummary.avgRating !== null ? reviewSummary.avgRating.toFixed(1) : "—"}
+                    </span>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  {reviewSummary.reviews.map((r) => (
+                    <div key={r.id} className="rounded-xl border border-border/60 p-3 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="flex gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star
+                              key={s}
+                              className={`h-3.5 w-3.5 ${s <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-xs text-muted-foreground">{r.patientInitial}</span>
+                      </div>
+                      {r.comment && (
+                        <p className="text-xs text-foreground line-clamp-3">{r.comment}</p>
+                      )}
+                      <p className="text-[10px] text-muted-foreground">
+                        {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </div>
     </motion.div>
   );

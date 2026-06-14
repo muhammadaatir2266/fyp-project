@@ -38,6 +38,7 @@ export const getAppointments = async (req: Request, res: Response) => {
       where,
       include: {
         doctor: { include: { specialty: true } },
+        review: { select: { id: true, rating: true, comment: true, createdAt: true } },
       },
       orderBy: { scheduledAt: 'asc' },
     })

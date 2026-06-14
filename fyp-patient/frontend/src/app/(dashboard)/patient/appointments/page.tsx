@@ -3,16 +3,22 @@
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import api from "@/services/api.service";
+import { submitReview } from "@/services/reviews.service";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   Calendar,
   Clock,
@@ -20,10 +26,17 @@ import {
   Plus,
   X,
   Loader2,
-  CheckCircle,
-  AlertCircle,
+  Star,
+  CheckCircle2,
 } from "lucide-react";
 import { toast } from "sonner";
+
+interface ReviewData {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+}
 
 interface Appointment {
   id: string;
@@ -40,6 +53,7 @@ interface Appointment {
     clinicLocation: string | null;
     specialty: { name: string };
   };
+  review: ReviewData | null;
 }
 
 interface Doctor {
@@ -60,6 +74,32 @@ const STATUS_STYLES: Record<string, string> = {
   NO_SHOW: "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400",
 };
 
+function StarRating({ value, onChange }: { value: number; onChange: (v: number) => void }) {
+  const [hovered, setHovered] = useState(0);
+  return (
+    <div className="flex gap-1">
+      {[1, 2, 3, 4, 5].map((star) => (
+        <button
+          key={star}
+          type="button"
+          onClick={() => onChange(star)}
+          onMouseEnter={() => setHovered(star)}
+          onMouseLeave={() => setHovered(0)}
+          className="focus:outline-none"
+        >
+          <Star
+            className={`h-7 w-7 transition-colors ${
+              star <= (hovered || value)
+                ? "fill-amber-400 text-amber-400"
+                : "text-muted-foreground"
+            }`}
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function AppointmentsContent() {
   const searchParams = useSearchParams();
   const prefillDoctorId = searchParams.get("doctorId");
@@ -79,6 +119,12 @@ function AppointmentsContent() {
   const [selectedSlot, setSelectedSlot] = useState("");
   const [reason, setReason] = useState("");
   const [booking, setBooking] = useState(false);
+
+  // Review state
+  const [reviewTarget, setReviewTarget] = useState<Appointment | null>(null);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState("");
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
     fetchAppointments();
@@ -153,6 +199,34 @@ function AppointmentsContent() {
     }
   }
 
+  function openReview(apt: Appointment) {
+    setReviewTarget(apt);
+    setReviewRating(0);
+    setReviewComment("");
+  }
+
+  async function handleSubmitReview() {
+    if (!reviewTarget || reviewRating === 0) {
+      toast.error("Please select a star rating");
+      return;
+    }
+    setSubmittingReview(true);
+    try {
+      await submitReview({
+        appointmentId: reviewTarget.id,
+        rating: reviewRating,
+        comment: reviewComment.trim() || undefined,
+      });
+      toast.success("Review submitted — thank you!");
+      setReviewTarget(null);
+      fetchAppointments();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.error || "Failed to submit review");
+    } finally {
+      setSubmittingReview(false);
+    }
+  }
+
   const today = new Date().toISOString().split("T")[0];
 
   return (
@@ -177,7 +251,6 @@ function AppointmentsContent() {
             </Button>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Doctor search */}
             <div className="space-y-1">
               <label className="text-sm font-medium">Doctor</label>
               {selectedDoctor ? (
@@ -211,7 +284,6 @@ function AppointmentsContent() {
               )}
             </div>
 
-            {/* Date & Slot */}
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-sm font-medium">Date</label>
@@ -271,8 +343,9 @@ function AppointmentsContent() {
           {appointments.map((apt) => {
             const dt = new Date(apt.scheduledAt);
             const isPast = dt < new Date() || apt.status === "COMPLETED" || apt.status === "CANCELLED";
+            const canReview = apt.status === "COMPLETED" && !apt.review;
             return (
-              <Card key={apt.id} className={`border-border/50 ${isPast ? "opacity-70" : ""}`}>
+              <Card key={apt.id} className={`border-border/50 ${isPast ? "opacity-80" : ""}`}>
                 <CardContent className="flex items-start justify-between gap-4 p-5">
                   <div className="flex gap-4">
                     <div className="flex-shrink-0 flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-primary/10 text-primary font-bold text-center">
@@ -296,6 +369,15 @@ function AppointmentsContent() {
                         )}
                       </div>
                       {apt.reason && <p className="text-xs text-muted-foreground italic">"{apt.reason}"</p>}
+                      {/* Existing review summary */}
+                      {apt.review && (
+                        <div className="flex items-center gap-1 pt-1">
+                          {[1,2,3,4,5].map(s => (
+                            <Star key={s} className={`h-3 w-3 ${s <= apt.review!.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+                          ))}
+                          <span className="text-xs text-muted-foreground ml-1">Your review</span>
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">
@@ -312,6 +394,23 @@ function AppointmentsContent() {
                         Cancel
                       </Button>
                     )}
+                    {canReview && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs gap-1"
+                        onClick={() => openReview(apt)}
+                      >
+                        <Star className="h-3 w-3" />
+                        Leave Review
+                      </Button>
+                    )}
+                    {apt.review && (
+                      <span className="flex items-center gap-1 text-xs text-green-600 dark:text-green-400">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Reviewed
+                      </span>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -319,6 +418,46 @@ function AppointmentsContent() {
           })}
         </div>
       )}
+
+      {/* Review Sheet */}
+      <Sheet open={!!reviewTarget} onOpenChange={(o) => { if (!o) setReviewTarget(null); }}>
+        <SheetContent side="bottom" className="max-h-[80vh] rounded-t-2xl pb-safe">
+          <SheetHeader className="mb-4">
+            <SheetTitle>Rate your visit</SheetTitle>
+            {reviewTarget && (
+              <p className="text-sm text-muted-foreground">
+                Dr. {reviewTarget.doctor.firstName} {reviewTarget.doctor.lastName} — {reviewTarget.doctor.specialty?.name}
+              </p>
+            )}
+          </SheetHeader>
+          <div className="space-y-5">
+            <div>
+              <p className="text-sm font-medium mb-2">Your rating</p>
+              <StarRating value={reviewRating} onChange={setReviewRating} />
+            </div>
+            <div>
+              <label className="text-sm font-medium">Comment (optional)</label>
+              <Textarea
+                className="mt-1.5 resize-none"
+                rows={3}
+                placeholder="Share your experience..."
+                value={reviewComment}
+                onChange={(e) => setReviewComment(e.target.value)}
+                maxLength={500}
+              />
+              <p className="text-xs text-muted-foreground text-right mt-1">{reviewComment.length}/500</p>
+            </div>
+            <Button
+              className="w-full"
+              disabled={submittingReview || reviewRating === 0}
+              onClick={handleSubmitReview}
+            >
+              {submittingReview && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Submit Review
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

@@ -192,6 +192,7 @@ export const approveDoctor = async (req: Request, res: Response): Promise<void> 
       data: {
         verificationStatus: 'APPROVED',
         isActive: true,
+        isVerified: true,
         verifiedAt: new Date(),
         verifiedBy: adminUserId,
       },

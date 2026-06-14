@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import api from "@/services/api.service";
+import { getDoctorReviews, type DoctorReview } from "@/services/reviews.service";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +15,12 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
   Search,
   MapPin,
   Star,
@@ -22,6 +29,9 @@ import {
   Calendar,
   Loader2,
   X,
+  ShieldCheck,
+  Stethoscope,
+  ChevronRight,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -40,6 +50,112 @@ interface Doctor {
   availableFrom: string;
   availableTo: string;
   workingDays: string[];
+  isPlatformVerified: boolean;
+  completedAppointmentsCount: number;
+}
+
+function StarRow({ rating, count }: { rating: number; count: number }) {
+  return (
+    <div className="flex items-center gap-1 text-amber-500">
+      <Star className="h-4 w-4 fill-current" />
+      <span className="text-sm font-semibold text-foreground">{rating > 0 ? rating.toFixed(1) : "New"}</span>
+      {count > 0 && <span className="text-xs text-muted-foreground">({count})</span>}
+    </div>
+  );
+}
+
+function ReviewsSheet({
+  doctor,
+  open,
+  onClose,
+}: {
+  doctor: Doctor | null;
+  open: boolean;
+  onClose: () => void;
+}) {
+  const [reviews, setReviews] = useState<DoctorReview[]>([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [totalPages, setTotalPages] = useState(1);
+
+  useEffect(() => {
+    if (!open || !doctor) return;
+    setReviews([]);
+    setPage(1);
+    loadReviews(doctor.id, 1);
+  }, [open, doctor]);
+
+  async function loadReviews(id: string, p: number) {
+    setLoading(true);
+    try {
+      const data = await getDoctorReviews(id, p);
+      setReviews((prev) => (p === 1 ? data.reviews : [...prev, ...data.reviews]));
+      setTotal(data.total);
+      setTotalPages(data.totalPages);
+    } catch {}
+    finally { setLoading(false); }
+  }
+
+  function loadMore() {
+    if (!doctor || page >= totalPages) return;
+    const next = page + 1;
+    setPage(next);
+    loadReviews(doctor.id, next);
+  }
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <SheetContent side="right" className="w-full sm:max-w-md overflow-y-auto">
+        <SheetHeader className="mb-4">
+          <SheetTitle>
+            {doctor ? `Reviews — Dr. ${doctor.fullName}` : "Reviews"}
+          </SheetTitle>
+          {doctor && (
+            <p className="text-sm text-muted-foreground">
+              {doctor.rating > 0
+                ? `${doctor.rating.toFixed(1)} avg from ${total} review${total !== 1 ? "s" : ""}`
+                : "No reviews yet"}
+            </p>
+          )}
+        </SheetHeader>
+
+        {loading && reviews.length === 0 ? (
+          <div className="flex justify-center py-12">
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          </div>
+        ) : reviews.length === 0 ? (
+          <p className="text-center text-sm text-muted-foreground py-12">No reviews yet.</p>
+        ) : (
+          <div className="space-y-4">
+            {reviews.map((r) => (
+              <div key={r.id} className="rounded-xl border border-border/60 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1">
+                    {[1, 2, 3, 4, 5].map((s) => (
+                      <Star
+                        key={s}
+                        className={`h-3.5 w-3.5 ${s <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {r.patientInitial} · {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                  </span>
+                </div>
+                {r.comment && <p className="text-sm text-foreground">{r.comment}</p>}
+              </div>
+            ))}
+            {page < totalPages && (
+              <Button variant="outline" className="w-full" onClick={loadMore} disabled={loading}>
+                {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load more"}
+              </Button>
+            )}
+          </div>
+        )}
+      </SheetContent>
+    </Sheet>
+  );
 }
 
 function DoctorsContent() {
@@ -53,7 +169,8 @@ function DoctorsContent() {
   const [cityFilter, setCityFilter] = useState("");
   const [total, setTotal] = useState(0);
 
-  // Sync URL param into filter on first load (handles back-navigation too)
+  const [reviewsDoctor, setReviewsDoctor] = useState<Doctor | null>(null);
+
   useEffect(() => {
     setSpecialtyFilter(specialtyFromUrl);
   }, [specialtyFromUrl]);
@@ -147,19 +264,23 @@ function DoctorsContent() {
             <Card key={doctor.id} className="hover:shadow-md transition-shadow border-border/50">
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Dr. {doctor.fullName}</CardTitle>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <CardTitle className="text-lg">Dr. {doctor.fullName}</CardTitle>
+                      {doctor.isPlatformVerified && (
+                        <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
+                          <ShieldCheck className="h-3 w-3" />
+                          Platform Verified
+                        </Badge>
+                      )}
+                    </div>
                     <CardDescription className="mt-0.5">
                       <Badge variant="secondary" className="text-xs">
                         {doctor.specialty?.name}
                       </Badge>
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-1 text-amber-500">
-                    <Star className="h-4 w-4 fill-current" />
-                    <span className="text-sm font-semibold text-foreground">{doctor.rating?.toFixed(1)}</span>
-                    <span className="text-xs text-muted-foreground">({doctor.reviewCount})</span>
-                  </div>
+                  <StarRow rating={doctor.rating} count={doctor.reviewCount} />
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">
@@ -179,6 +300,12 @@ function DoctorsContent() {
                       Rs. {doctor.consultationFee}
                     </span>
                   )}
+                  {doctor.completedAppointmentsCount > 0 && (
+                    <span className="flex items-center gap-1">
+                      <Stethoscope className="h-3.5 w-3.5" />
+                      {doctor.completedAppointmentsCount} consultations
+                    </span>
+                  )}
                 </div>
                 <div className="flex gap-2 pt-1">
                   <Button size="sm" variant="outline" className="flex-1" asChild>
@@ -187,12 +314,30 @@ function DoctorsContent() {
                       Book Appointment
                     </Link>
                   </Button>
+                  {doctor.reviewCount > 0 && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="gap-1 text-xs"
+                      onClick={() => setReviewsDoctor(doctor)}
+                    >
+                      <Star className="h-3.5 w-3.5" />
+                      Reviews
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      <ReviewsSheet
+        doctor={reviewsDoctor}
+        open={!!reviewsDoctor}
+        onClose={() => setReviewsDoctor(null)}
+      />
     </div>
   );
 }
