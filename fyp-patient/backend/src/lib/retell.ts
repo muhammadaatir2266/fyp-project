@@ -1,5 +1,22 @@
 import Retell from 'retell-sdk'
 
+const PLACEHOLDER_HINTS = ['your_', '_here', 'example', 'xxxxxxxx']
+
+function isPlaceholderValue(value: string): boolean {
+  const lower = value.toLowerCase()
+  return PLACEHOLDER_HINTS.some((hint) => lower.includes(hint))
+}
+
+/** True when Retell env vars look like real credentials, not .env placeholders. */
+export function isRetellConfigured(): boolean {
+  const apiKey = process.env.RETELL_API_KEY?.trim() ?? ''
+  const agentId = process.env.RETELL_AGENT_ID?.trim() ?? ''
+  if (!apiKey || !agentId) return false
+  if (!apiKey.startsWith('key_') || !agentId.startsWith('agent_')) return false
+  if (isPlaceholderValue(apiKey) || isPlaceholderValue(agentId)) return false
+  return true
+}
+
 let _client: Retell | null = null
 
 function getClient(): Retell {
