@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma'
 import { z } from 'zod'
 import { AppError } from '../middleware/error.middleware'
 import { buildBookedMap, validateScheduledSlot } from '../lib/availability'
-import { createRetellWebCall, isRetellConfigured } from '../lib/retell'
+import { createRetellWebCall, getRetellConfigStatus } from '../lib/retell'
 
 const bookSchema = z.object({
   doctorId: z.string().uuid('Invalid doctor ID'),
@@ -223,7 +223,9 @@ export const updateAppointment = async (req: Request, res: Response) => {
 
 export const createVoiceCall = async (req: Request, res: Response) => {
   try {
-    if (!isRetellConfigured()) {
+    const retellStatus = getRetellConfigStatus()
+    if (!retellStatus.configured) {
+      console.warn('[Retell] voice call rejected — env status:', retellStatus)
       throw new AppError('Voice calling is not configured. Please book online.', 503)
     }
 

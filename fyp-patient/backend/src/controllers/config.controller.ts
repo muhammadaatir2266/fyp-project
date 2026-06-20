@@ -1,6 +1,14 @@
 import { Request, Response } from 'express'
-import { isRetellConfigured } from '../lib/retell'
+import { getRetellConfigStatus } from '../lib/retell'
 
 export const getBookingConfig = (_req: Request, res: Response) => {
-  res.json({ callBookingEnabled: isRetellConfigured() })
+  const retell = getRetellConfigStatus()
+  res.json({
+    callBookingEnabled: retell.configured,
+    retell: {
+      apiKeySet: retell.apiKeySet,
+      agentIdSet: retell.agentIdSet,
+      configured: retell.configured,
+    },
+  })
 }

@@ -1,20 +1,43 @@
 import Retell from 'retell-sdk'
 
-const PLACEHOLDER_HINTS = ['your_', '_here', 'example', 'xxxxxxxx']
+const PLACEHOLDER_HINTS = ['your_retell', 'your_', '_here', 'example.com']
 
 function isPlaceholderValue(value: string): boolean {
   const lower = value.toLowerCase()
   return PLACEHOLDER_HINTS.some((hint) => lower.includes(hint))
 }
 
-/** True when Retell env vars look like real credentials, not .env placeholders. */
-export function isRetellConfigured(): boolean {
+export interface RetellConfigStatus {
+  apiKeySet: boolean
+  agentIdSet: boolean
+  placeholderRejected: boolean
+  configured: boolean
+}
+
+/** True when Retell env vars are present and not .env placeholders. */
+export function getRetellConfigStatus(): RetellConfigStatus {
   const apiKey = process.env.RETELL_API_KEY?.trim() ?? ''
   const agentId = process.env.RETELL_AGENT_ID?.trim() ?? ''
-  if (!apiKey || !agentId) return false
-  if (!apiKey.startsWith('key_') || !agentId.startsWith('agent_')) return false
-  if (isPlaceholderValue(apiKey) || isPlaceholderValue(agentId)) return false
-  return true
+  const apiKeySet = apiKey.length > 0
+  const agentIdSet = agentId.length > 0
+  const placeholderRejected =
+    (apiKeySet && isPlaceholderValue(apiKey)) || (agentIdSet && isPlaceholderValue(agentId))
+  const configured = apiKeySet && agentIdSet && !placeholderRejected
+  return { apiKeySet, agentIdSet, placeholderRejected, configured }
+}
+
+export function isRetellConfigured(): boolean {
+  return getRetellConfigStatus().configured
+}
+
+export function logRetellConfigOnStartup(): void {
+  const s = getRetellConfigStatus()
+  console.log('[Retell] startup config:', {
+    apiKeySet: s.apiKeySet,
+    agentIdSet: s.agentIdSet,
+    configured: s.configured,
+    placeholderRejected: s.placeholderRejected,
+  })
 }
 
 let _client: Retell | null = null
