@@ -3,6 +3,7 @@ import type { NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  // authToken cookie is URI-encoded (set by setAuthToken in lib/auth.ts)
   const authToken = request.cookies.get("authToken")?.value;
   const userRole = request.cookies.get("userRole")?.value;
 

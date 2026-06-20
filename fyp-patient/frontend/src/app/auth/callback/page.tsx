@@ -1,8 +1,8 @@
 "use client";
 
-import { Suspense, useEffect } from "react";
+import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { setAuthToken, setCurrentUser } from "@/lib/auth";
+import { setAuthToken, setCurrentUser, parseJwtPayload } from "@/lib/auth";
 import { resolvePostAuthPath } from "@/lib/guest-handoff";
 
 const WEBSITE_URL =
@@ -11,33 +11,38 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000/api";
 
 function CallbackHandler() {
   const searchParams = useSearchParams();
+  const processed = useRef(false);
 
   useEffect(() => {
-    const token = searchParams.get("token");
+    // Guard against the double-run that happens when replaceState strips the query string,
+    // which causes Next.js to re-render with empty searchParams and redirect to /login.
+    if (processed.current) return;
+    processed.current = true;
 
-    if (!token) {
+    // Read all params before touching the URL
+    const token = searchParams.get("token");
+    const guestSessionId = searchParams.get("guestSessionId");
+    const destination = resolvePostAuthPath(searchParams);
+
+    if (!token || token.split(".").length !== 3) {
       window.location.replace(`${WEBSITE_URL}/login`);
       return;
     }
 
-    // Strip the token from the URL immediately
-    window.history.replaceState({}, "", "/auth/callback");
-
-    // Decode payload to get role for cookie
     try {
-      const payload = JSON.parse(atob(token.split(".")[1]));
+      const payload = parseJwtPayload(token);
+      // Persist session before stripping the URL
       setAuthToken(token);
-      setCurrentUser({ id: payload.userId, email: payload.email, role: payload.role });
+      setCurrentUser({ id: payload.userId as string, email: payload.email as string, role: payload.role as "PATIENT" });
     } catch {
       window.location.replace(`${WEBSITE_URL}/login`);
       return;
     }
 
-    const guestSessionId = searchParams.get("guestSessionId");
-    const destination = resolvePostAuthPath(searchParams);
+    // Strip token from URL after saving session (security)
+    window.history.replaceState({}, "", "/auth/callback");
 
     if (guestSessionId) {
-      // Claim guest predictions, then navigate regardless of outcome
       fetch(`${API_URL}/chat/guest/claim`, {
         method: "POST",
         headers: {

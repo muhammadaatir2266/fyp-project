@@ -2,10 +2,10 @@
 
 import { Suspense, useEffect, useRef } from "react";
 import { useSearchParams } from "next/navigation";
-import { setToken } from "@/lib/auth";
+import { setAuthToken } from "@/lib/auth";
 
 const WEBSITE_URL =
-  process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3003";
+  process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3000";
 
 function CallbackHandler() {
   const searchParams = useSearchParams();
@@ -13,7 +13,7 @@ function CallbackHandler() {
 
   useEffect(() => {
     // Guard against the double-run caused by replaceState clearing searchParams,
-    // which would otherwise redirect the user back to the website login page.
+    // which would otherwise redirect the admin back to the website login page.
     if (processed.current) return;
     processed.current = true;
 
@@ -25,7 +25,7 @@ function CallbackHandler() {
     }
 
     // Persist token before stripping it from the URL (security)
-    setToken(token);
+    setAuthToken(token);
     window.history.replaceState({}, "", "/auth/callback");
     window.location.replace("/dashboard");
   }, [searchParams]);
@@ -45,14 +45,16 @@ function CallbackHandler() {
 
 export default function AuthCallback() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <svg className="animate-spin w-10 h-10 text-primary" viewBox="0 0 24 24" fill="none">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-        </svg>
-      </div>
-    }>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <svg className="animate-spin w-10 h-10 text-primary" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+          </svg>
+        </div>
+      }
+    >
       <CallbackHandler />
     </Suspense>
   );

@@ -92,19 +92,34 @@ export const fetchCurrentUser = async (): Promise<User> => {
   return user
 }
 
+// Decode a JWT payload safely (handles base64url encoding)
+export const parseJwtPayload = (token: string): Record<string, unknown> => {
+  const parts = token.split('.')
+  if (parts.length !== 3) throw new Error('Invalid JWT structure')
+  const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/')
+  const padded = base64.padEnd(base64.length + (4 - (base64.length % 4)) % 4, '=')
+  return JSON.parse(atob(padded))
+}
+
 // Store auth token in localStorage and cookies
 export const setAuthToken = (token: string) => {
   if (typeof window !== 'undefined') {
     localStorage.setItem('authToken', token)
-    // Set cookie for middleware
-    document.cookie = `authToken=${token}; path=/; max-age=86400; SameSite=Lax`
+    // Encode the JWT so dots/plus signs don't corrupt the cookie value
+    const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+    document.cookie = `authToken=${encodeURIComponent(token)}; path=/; max-age=86400; SameSite=Lax${secure}`
   }
 }
 
-// Get auth token from localStorage or cookies
+// Get auth token from localStorage, falling back to cookie (for hard-refresh resilience)
 export const getAuthToken = (): string | null => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('authToken')
+    const ls = localStorage.getItem('authToken')
+    if (ls) return ls
+    const match = document.cookie.match(/(?:^|;\s*)authToken=([^;]+)/)
+    if (match) {
+      try { return decodeURIComponent(match[1]) } catch { return null }
+    }
   }
   return null
 }
