@@ -3,6 +3,7 @@ import { prisma } from '../lib/prisma'
 import { z } from 'zod'
 import { AppError } from '../middleware/error.middleware'
 import { buildBookedMap, validateScheduledSlot } from '../lib/availability'
+import Retell from 'retell-sdk'
 import { createRetellWebCall } from '../lib/retell'
 
 const bookSchema = z.object({
@@ -277,7 +278,16 @@ export const createVoiceCall = async (req: Request, res: Response) => {
         data: { retellCallId: callId },
       })
     } catch (retellErr) {
-      console.error('Retell createWebCall failed:', retellErr)
+      if (retellErr instanceof Retell.APIError) {
+        console.error('Retell createWebCall failed:', {
+          status: retellErr.status,
+          name: retellErr.name,
+          message: retellErr.message,
+          error: retellErr.error,
+        })
+      } else {
+        console.error('Retell createWebCall failed:', retellErr)
+      }
       // Clean up intent if Retell registration failed
       await prisma.callBookingIntent.delete({ where: { id: intent.id } }).catch(() => {})
       throw new AppError('Failed to start voice call. Please try again or book online.', 503)

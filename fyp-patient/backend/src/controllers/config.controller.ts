@@ -1,8 +1,6 @@
 import { Request, Response } from 'express'
+import { isRetellConfigured } from '../lib/retell'
 
 export const getBookingConfig = (_req: Request, res: Response) => {
-  const callBookingEnabled = Boolean(
-    process.env.RETELL_API_KEY && process.env.RETELL_AGENT_ID,
-  )
-  res.json({ callBookingEnabled })
+  res.json({ callBookingEnabled: isRetellConfigured() })
 }

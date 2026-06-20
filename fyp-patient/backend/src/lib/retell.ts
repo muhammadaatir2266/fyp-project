@@ -1,15 +1,10 @@
 import Retell from 'retell-sdk'
 
-let _client: Retell | null = null
-
-function getClient(): Retell {
-  if (!_client) {
-    const apiKey = process.env.RETELL_API_KEY
-    if (!apiKey) throw new Error('RETELL_API_KEY is not set')
-    _client = new Retell({ apiKey })
-  }
-  return _client
-}
+// Official pattern from the retell-typescript-sdk README.
+// apiKey defaults to process.env['RETELL_API_KEY'] when omitted; explicit here for clarity.
+export const retellClient = new Retell({
+  apiKey: process.env['RETELL_API_KEY'],
+})
 
 export interface CreateWebCallOptions {
   doctorId: string
@@ -21,12 +16,10 @@ export interface CreateWebCallOptions {
 }
 
 export async function createRetellWebCall(opts: CreateWebCallOptions) {
-  const agentId = process.env.RETELL_AGENT_ID
+  const agentId = process.env['RETELL_AGENT_ID']
   if (!agentId) throw new Error('RETELL_AGENT_ID is not set')
 
-  const client = getClient()
-
-  const response = await client.call.createWebCall({
+  const params: Retell.CallCreateWebCallParams = {
     agent_id: agentId,
     metadata: {
       doctorId: opts.doctorId,
@@ -41,10 +34,20 @@ export async function createRetellWebCall(opts: CreateWebCallOptions) {
       doctor_name: opts.doctorName,
       doctor_specialty: opts.doctorSpecialty,
     },
-  })
+  }
+
+  const response: Retell.WebCallResponse = await retellClient.call.createWebCall(params)
 
   return {
     accessToken: response.access_token,
     callId: response.call_id,
   }
+}
+
+// Returns true only when env vars look like real Retell values (not placeholders).
+// Prevents the AI Assistant button from appearing when keys are not yet configured.
+export function isRetellConfigured(): boolean {
+  const key = process.env['RETELL_API_KEY']?.trim()
+  const agentId = process.env['RETELL_AGENT_ID']?.trim()
+  return Boolean(key && agentId && key.startsWith('key_') && agentId.startsWith('agent_'))
 }
