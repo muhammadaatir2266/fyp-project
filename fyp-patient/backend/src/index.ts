@@ -1,9 +1,8 @@
-import './config/env'
-
 import express, { Application } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import morgan from 'morgan'
+import dotenv from 'dotenv'
 import { connectDatabase } from './config/database'
 import { errorHandler, notFound } from './middleware/error.middleware'
 import authRoutes from './routes/auth.routes'
@@ -14,9 +13,8 @@ import profileRoutes from './routes/profile.routes'
 import symptomsRoutes from './routes/symptoms.routes'
 import reviewsRoutes from './routes/reviews.routes'
 import configRoutes from './routes/config.routes'
-import { logRetellConfigOnStartup } from './lib/retell'
 
-logRetellConfigOnStartup()
+dotenv.config()
 
 const app: Application = express()
 const PORT = process.env.PORT || 5000

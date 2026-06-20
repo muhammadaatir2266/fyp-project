@@ -3,7 +3,7 @@ import { prisma } from '../lib/prisma'
 import { z } from 'zod'
 import { AppError } from '../middleware/error.middleware'
 import { buildBookedMap, validateScheduledSlot } from '../lib/availability'
-import { createRetellWebCall, getRetellConfigStatus } from '../lib/retell'
+import { createRetellWebCall } from '../lib/retell'
 
 const bookSchema = z.object({
   doctorId: z.string().uuid('Invalid doctor ID'),
@@ -223,12 +223,6 @@ export const updateAppointment = async (req: Request, res: Response) => {
 
 export const createVoiceCall = async (req: Request, res: Response) => {
   try {
-    const retellStatus = getRetellConfigStatus()
-    if (!retellStatus.configured) {
-      console.warn('[Retell] voice call rejected — env status:', retellStatus)
-      throw new AppError('Voice calling is not configured. Please book online.', 503)
-    }
-
     const patientId = await getPatientId(req.user!.userId)
     const { doctorId } = callIntentSchema.parse(req.body)
 
@@ -283,11 +277,7 @@ export const createVoiceCall = async (req: Request, res: Response) => {
         data: { retellCallId: callId },
       })
     } catch (retellErr) {
-      console.error(
-        'Retell web call failed:',
-        retellErr instanceof Error ? retellErr.message : retellErr,
-        retellErr,
-      )
+      console.error('Retell createWebCall failed:', retellErr)
       // Clean up intent if Retell registration failed
       await prisma.callBookingIntent.delete({ where: { id: intent.id } }).catch(() => {})
       throw new AppError('Failed to start voice call. Please try again or book online.', 503)
