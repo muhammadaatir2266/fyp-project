@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Trimed Al - Doctor Portal",
+  title: "DocLink - Doctor Portal",
   description: "AI-Powered Virtual Medical Assistant - Doctor Dashboard",
 };
 

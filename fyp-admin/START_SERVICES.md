@@ -1,4 +1,4 @@
-# Starting Trimed Al Admin Services
+# Starting DocLink Admin Services
 
 This guide explains how to start both the Node.js backend and ML service.
 

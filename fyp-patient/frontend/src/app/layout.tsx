@@ -3,7 +3,7 @@ import "./globals.css";
 import AuthSync from "@/components/AuthSync";
 
 export const metadata: Metadata = {
-  title: "Trimed Al - Virtual Medical Assistant",
+  title: "DocLink - Patient Portal",
   description:
     "AI-Powered Virtual Medical Assistant and Smart Doctor Calling Agent",
 };

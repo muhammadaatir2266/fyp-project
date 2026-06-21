@@ -56,10 +56,10 @@ export default function LoginPage() {
         className="absolute top-4 sm:top-6 left-4 sm:left-6 flex items-center gap-2 sm:gap-3 z-50"
       >
         <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl overflow-hidden shadow-lg shadow-primary/20">
-          <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
+          <img src="/logo.png" alt="DocLink" className="h-full w-full object-cover" />
         </div>
         <span className="text-lg sm:text-xl font-bold text-foreground">
-          Trimed Al
+          DocLink
         </span>
       </Link>
 
@@ -81,7 +81,7 @@ export default function LoginPage() {
               Sign In
             </CardTitle>
             <CardDescription className="text-muted-foreground text-sm sm:text-base">
-              Access the Trimed Al management panel
+              Access the DocLink management panel
             </CardDescription>
           </CardHeader>
 
@@ -181,7 +181,7 @@ export default function LoginPage() {
 
           <CardFooter className="justify-center pb-6">
             <p className="text-center text-sm text-muted-foreground">
-              © 2024 Trimed Al — Secure Admin Access
+              © 2024 DocLink — Secure Admin Access
             </p>
           </CardFooter>
         </Card>

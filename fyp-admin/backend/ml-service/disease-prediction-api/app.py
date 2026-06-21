@@ -1,5 +1,5 @@
 """
-Trimed Al ML Service - Disease Prediction API
+DocLink ML Service - Disease Prediction API
 Integrated with Node.js backend authentication
 """
 import logging
@@ -66,7 +66,7 @@ async def lifespan(app: FastAPI):
 
 # Initialize FastAPI app
 app = FastAPI(
-    title="Trimed Al ML Service",
+    title="DocLink ML Service",
     description="Disease prediction API using CatBoost ML model",
     version="1.0.0",
     lifespan=lifespan

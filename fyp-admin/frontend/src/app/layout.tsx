@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Admin Dashboard - Trimed Al",
-  description: "Central management panel for Trimed Al healthcare platform",
+  title: "Admin Dashboard - DocLink",
+  description: "Central management panel for DocLink healthcare platform",
 };
 
 export default function RootLayout({

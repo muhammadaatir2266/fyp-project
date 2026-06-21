@@ -36,7 +36,7 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
       id: "1",
       role: "assistant",
       content:
-        "Hello! I'm your AI medical assistant powered by Trimed Al. Describe your symptoms and I'll analyze them, suggest possible conditions, and recommend the right specialist for you.",
+        "Hello! I'm your AI medical assistant powered by DocLink. Describe your symptoms and I'll analyze them, suggest possible conditions, and recommend the right specialist for you.",
       timestamp: new Date(),
     },
   ]);

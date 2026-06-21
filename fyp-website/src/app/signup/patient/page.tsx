@@ -15,9 +15,9 @@ function PatientSignupInner() {
       <header className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm border-b px-4 py-3 flex items-center justify-between">
         <Link href={websiteUrl} className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-lg overflow-hidden shadow-sm">
-            <img src="/logo.png" alt="Trimed" className="h-full w-full object-cover" />
+            <img src="/logo.png" alt="DocLink" className="h-full w-full object-cover" />
           </div>
-          <span className="font-bold text-foreground text-base hidden sm:block">Trimed</span>
+          <span className="font-bold text-foreground text-base hidden sm:block">DocLink</span>
         </Link>
         <span className="text-sm text-muted-foreground">
           Already have an account?{" "}

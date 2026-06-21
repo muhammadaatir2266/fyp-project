@@ -1,6 +1,6 @@
-const GUEST_SESSION_KEY = "trimed_guest_session_id";
-const GUEST_COMPLETED_KEY = "trimed_guest_chat_completed";
-const GUEST_CONTEXT_KEY = "trimed_guest_context";
+const GUEST_SESSION_KEY = "doclink_guest_session_id";
+const GUEST_COMPLETED_KEY = "doclink_guest_chat_completed";
+const GUEST_CONTEXT_KEY = "doclink_guest_context";
 
 function generateUUID(): string {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {

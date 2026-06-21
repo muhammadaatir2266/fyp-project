@@ -13,7 +13,7 @@ export interface CityFallback {
 
 export type PatientLocation = GpsCoords | CityFallback | null;
 
-const SESSION_KEY = "trimed_patient_location";
+const SESSION_KEY = "doclink_patient_location";
 
 /** Cache GPS coords to session storage and optionally persist to profile. */
 async function cacheAndSaveGps(lat: number, lng: number): Promise<GpsCoords> {

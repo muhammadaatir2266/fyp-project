@@ -15,7 +15,7 @@ export default function SignupPage() {
           <div className="w-8 h-8 bg-teal-600 rounded-lg flex items-center justify-center">
             <span className="text-white font-bold text-sm">T</span>
           </div>
-          <span className="font-bold text-gray-900 text-lg">Trimed</span>
+          <span className="font-bold text-gray-900 text-lg">DocLink</span>
         </Link>
         <span className="text-sm text-gray-500">
           Already have an account?{' '}
@@ -28,7 +28,7 @@ export default function SignupPage() {
       <main className="py-10 px-4">
         <div className="max-w-2xl mx-auto">
           <div className="text-center mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Join Trimed as a Doctor</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-2">Join DocLink as a Doctor</h1>
             <p className="text-gray-500">
               Complete the steps below to apply for your practitioner account. Once your documents
               are verified, you&apos;ll be able to accept appointments.
@@ -38,7 +38,7 @@ export default function SignupPage() {
           <DoctorSignupWizard />
 
           <p className="text-center text-xs text-gray-400 mt-6">
-            By submitting this form you agree to Trimed&apos;s{' '}
+            By submitting this form you agree to DocLink&apos;s{' '}
             <Link href={`${websiteUrl}/terms`} className="underline">
               Terms of Service
             </Link>{' '}

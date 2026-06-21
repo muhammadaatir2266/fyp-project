@@ -50,10 +50,10 @@ export default function Navbar() {
           className="group flex items-center gap-2.5 text-xl font-bold tracking-tight text-foreground transition-all"
         >
           <div className="relative flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl shadow-lg transition-transform group-hover:scale-110">
-            <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
+            <img src="/logo.png" alt="DocLink" className="h-full w-full object-cover" />
           </div>
           <span className="bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text">
-            Trimed Al
+            DocLink
           </span>
         </Link>
 

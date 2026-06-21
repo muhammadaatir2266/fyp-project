@@ -92,7 +92,7 @@ export function ReviewStep({ data, guestContext }: Props) {
       )}
 
       <div className="rounded-xl bg-muted/40 border border-border px-4 py-3 text-xs text-muted-foreground">
-        By creating your account you agree to Trimed&apos;s Terms of Service and Privacy Policy. Your
+        By creating your account you agree to DocLink&apos;s Terms of Service and Privacy Policy. Your
         health information is encrypted and never shared without your consent.
       </div>
     </div>

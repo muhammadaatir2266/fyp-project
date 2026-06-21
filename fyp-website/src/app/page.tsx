@@ -642,7 +642,7 @@ export default function Home() {
         <section className="relative overflow-hidden bg-white">
           <CTASection
             title="Take control of your health today"
-            description="Join thousands of users who trust Trimed Al for instant symptom analysis and doctor connections."
+            description="Join thousands of users who trust DocLink for instant symptom analysis and doctor connections."
             primaryBtnText="Start Health Chat"
             primaryBtnLink={`${process.env.NEXT_PUBLIC_PATIENT_APP_URL}/signup`}
             secondaryBtnText="Are you a Doctor?"

@@ -42,10 +42,10 @@ export default function SignupSelectionPage() {
         </button>
         <Link href={rootUrl} className="flex items-center gap-2">
           <div className="w-9 h-9 rounded-lg overflow-hidden shadow-md">
-            <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
+            <img src="/logo.png" alt="DocLink" className="h-full w-full object-cover" />
           </div>
           <span className="text-lg font-bold text-teal-600 hidden sm:block">
-            Trimed Al
+            DocLink
           </span>
         </Link>
       </div>

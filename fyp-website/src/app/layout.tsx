@@ -4,7 +4,7 @@ import NavbarWrapper from "@/components/NavbarWrapper";
 import RootLayoutShell from "@/components/RootLayoutShell";
 
 export const metadata: Metadata = {
-  title: "Trimed Al",
+  title: "DocLink",
   description: "Your Personal AI Health Companion",
 };
 

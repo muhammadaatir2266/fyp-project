@@ -4,7 +4,7 @@ Date: March 24, 2026
 Feature: Disease Prediction ML Model API Integration
 
 OVERVIEW:
-Integrated a CatBoost-based disease prediction ML model into the Trimed Al admin backend.
+Integrated a CatBoost-based disease prediction ML model into the DocLink admin backend.
 The ML service runs as a separate Python FastAPI microservice and is accessed through
 the Node.js backend with API token authentication.
 

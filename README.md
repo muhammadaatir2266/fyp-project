@@ -1,4 +1,4 @@
-# Trimed Al — AI-Powered Virtual Medical Assistant
+# DocLink — AI-Powered Virtual Medical Assistant
 
 Multi-portal healthcare platform with patient AI chat, disease prediction, doctor recommendations, and a voice calling agent for doctor-side call automation.
 
@@ -24,7 +24,7 @@ Create a PostgreSQL database and note the connection string.
 Copy `fyp-patient/backend/env.example` to `fyp-patient/backend/.env` and fill in:
 
 ```
-DATABASE_URL="postgresql://user:password@localhost:5432/trimed_al"
+DATABASE_URL="postgresql://user:password@localhost:5432/doclink"
 JWT_SECRET=<random-secret>
 N8N_CHAT_WEBHOOK_URL=<your-n8n-webhook>
 ML_MODEL_API_URL=http://localhost:8000

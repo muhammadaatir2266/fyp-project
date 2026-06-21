@@ -14,9 +14,9 @@ export function MobileNav() {
       <div className="flex items-center justify-between">
         <Link href={process.env.NEXT_PUBLIC_WEBSITE_URL || "http://localhost:3000"} className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-lg overflow-hidden">
-            <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
+            <img src="/logo.png" alt="DocLink" className="h-full w-full object-cover" />
           </div>
-          <span className="font-bold">Trimed Al</span>
+          <span className="font-bold">DocLink</span>
         </Link>
         <Button
           variant="ghost"

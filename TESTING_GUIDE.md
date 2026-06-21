@@ -1,4 +1,4 @@
-# Testing Guide — Trimed Al
+# Testing Guide — DocLink
 
 ## E2E Test Scenarios (Report Chapter 7: Testing)
 

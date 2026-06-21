@@ -16,7 +16,7 @@ interface CTAProps {
 
 export default function CTASection({
   title = "Ready to transform your practice?",
-  description = "Join thousands of clinicians who are saving time and improving care with Trimed Al.",
+  description = "Join thousands of clinicians who are saving time and improving care with DocLink.",
   primaryBtnText = "Start Free Trial",
   primaryBtnLink,
   secondaryBtnText = "Contact Sales",

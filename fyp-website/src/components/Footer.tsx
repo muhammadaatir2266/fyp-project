@@ -43,9 +43,9 @@ export default function Footer() {
               className="flex items-center gap-2.5 text-2xl font-bold tracking-tight text-slate-900"
             >
               <div className="flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden shadow-lg">
-                <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
+                <img src="/logo.png" alt="DocLink" className="h-full w-full object-cover" />
               </div>
-              Trimed Al
+              DocLink
             </Link>
             <p className="max-w-xs text-slate-500 leading-relaxed">
               Empowering individuals with AI-driven health insights and
@@ -108,7 +108,7 @@ export default function Footer() {
               <ul className="space-y-4">
                 <li className="flex items-center gap-3 text-slate-500">
                   <Mail className="h-4 w-4 text-primary" />
-                  support@trimedal.com
+                  support@doclink.dev
                 </li>
                 <li className="flex items-center gap-3 text-slate-500">
                   <Phone className="h-4 w-4 text-primary" />
@@ -130,7 +130,7 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="mt-20 pt-8 border-t border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6">
           <p className="text-sm text-slate-400">
-            © {currentYear} Trimed Al. All rights reserved.
+            © {currentYear} DocLink. All rights reserved.
           </p>
         </div>
       </div>

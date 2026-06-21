@@ -8,7 +8,7 @@ pinned: false
 license: mit
 ---
 
-# Trimed AI ML Service - Disease Prediction API
+# DocLink ML Service - Disease Prediction API
 
 A FastAPI-based disease prediction service using CatBoost machine learning model. This API predicts diseases based on provided symptoms.
 

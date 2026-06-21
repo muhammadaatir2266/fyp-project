@@ -375,7 +375,7 @@ export default function FeaturesPage() {
           <div className="absolute inset-0 -z-10 bg-[linear-gradient(to_right,#80808005_1px,transparent_1px),linear-gradient(to_bottom,#80808005_1px,transparent_1px)] bg-[size:32px_32px]" />
           <div className="mx-auto max-w-6xl text-center">
             <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 mb-4">
-              Why choose Trimed Al?
+              Why choose DocLink?
             </h2>
             <p className="text-base sm:text-lg text-slate-600 mb-8 sm:mb-12 max-w-2xl mx-auto">
               We combine cutting-edge AI with medical expertise to deliver the

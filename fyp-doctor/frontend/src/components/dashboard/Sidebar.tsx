@@ -90,11 +90,11 @@ export function Sidebar({ className }: { className?: string }) {
             whileTap={{ scale: 0.95 }}
             className="relative flex h-10 w-10 items-center justify-center rounded-xl overflow-hidden shadow-lg shadow-primary/25 transition-transform"
           >
-            <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
+            <img src="/logo.png" alt="DocLink" className="h-full w-full object-cover" />
           </motion.div>
           <div className="flex flex-col">
             <h2 className="text-lg font-bold tracking-tight text-foreground leading-none">
-              Trimed Al
+              DocLink
             </h2>
             <p className="text-xs text-muted-foreground font-medium">
               Doctor Portal

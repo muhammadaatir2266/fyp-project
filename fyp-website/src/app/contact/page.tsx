@@ -24,7 +24,7 @@ export default function ContactPage() {
     {
       title: "Email Us",
       desc: "Our team is here to help with any health-related questions.",
-      value: "support@trimedal.com",
+      value: "support@doclink.dev",
       icon: Mail,
       color: "bg-primary/10 text-primary",
     },
@@ -248,7 +248,7 @@ export default function ContactPage() {
                 },
                 {
                   q: "Can I use it for emergencies?",
-                  a: "No, Trimed Al is for informational purposes. Always call emergency services for urgent issues.",
+                  a: "No, DocLink is for informational purposes. Always call emergency services for urgent issues.",
                 },
                 {
                   q: "How accurate are the predictions?",

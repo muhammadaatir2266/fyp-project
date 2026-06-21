@@ -78,7 +78,7 @@ function LoginForm() {
         </div>
         <h1 className="text-2xl font-bold text-foreground">Sign In</h1>
         <p className="text-muted-foreground text-sm mt-1">
-          Access your Trimed Al account
+          Access your DocLink account
         </p>
       </div>
 
@@ -188,9 +188,9 @@ export default function LoginPage() {
       {/* Logo */}
       <Link href="/" className="absolute top-5 left-6 flex items-center gap-2.5 z-50 group">
         <div className="w-9 h-9 rounded-xl overflow-hidden shadow-lg shadow-primary/20 transition-transform group-hover:scale-105">
-          <img src="/logo.png" alt="Trimed Al" className="h-full w-full object-cover" />
+          <img src="/logo.png" alt="DocLink" className="h-full w-full object-cover" />
         </div>
-        <span className="text-base font-bold text-foreground hidden sm:block">Trimed Al</span>
+        <span className="text-base font-bold text-foreground hidden sm:block">DocLink</span>
       </Link>
 
       <motion.div

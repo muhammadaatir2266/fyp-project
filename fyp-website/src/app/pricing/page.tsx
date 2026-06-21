@@ -351,7 +351,7 @@ export default function PricingPage() {
         <section className="relative overflow-hidden bg-white">
           <CTASection
             title="Start your clinical transformation"
-            description="Join over 5,000+ clinicians using Trimed Al to provide better care."
+            description="Join over 5,000+ clinicians using DocLink to provide better care."
             primaryBtnText="Start Free Trial"
             primaryBtnLink={`${process.env.NEXT_PUBLIC_APP_URL}/signup`}
             secondaryBtnText="Schedule Demo"

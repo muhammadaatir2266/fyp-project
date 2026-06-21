@@ -61,7 +61,7 @@ export default function DashboardLayout({
         {/* Mobile top bar */}
         <div className="md:hidden flex items-center gap-3 p-4 pb-0">
           <MobileNav adminName={adminName} adminEmail={adminEmail} />
-          <span className="text-sm font-semibold text-foreground">Trimed Al Admin</span>
+          <span className="text-sm font-semibold text-foreground">DocLink Admin</span>
         </div>
 
         <main className="flex flex-1 flex-col gap-4 p-4 lg:gap-6 lg:p-8">

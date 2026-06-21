@@ -40,16 +40,16 @@ export default function FAQPage() {
       icon: HelpCircle,
       faqs: [
         {
-          q: "What is Trimed Al?",
-          a: "Trimed Al is an advanced AI health companion designed to help patients understand their symptoms and provide medical professionals with powerful diagnostic and administrative tools. It uses state-of-the-art machine learning models to analyze health data and provide actionable insights.",
+          q: "What is DocLink?",
+          a: "DocLink is an advanced AI health companion designed to help patients understand their symptoms and provide medical professionals with powerful diagnostic and administrative tools. It uses state-of-the-art machine learning models to analyze health data and provide actionable insights.",
         },
         {
-          q: "Is Trimed Al a replacement for a doctor?",
-          a: "No. Trimed Al is designed to be a supportive tool for both patients and doctors. It provides information and analysis to help you make more informed decisions, but it should never replace professional medical advice, diagnosis, or treatment.",
+          q: "Is DocLink a replacement for a doctor?",
+          a: "No. DocLink is designed to be a supportive tool for both patients and doctors. It provides information and analysis to help you make more informed decisions, but it should never replace professional medical advice, diagnosis, or treatment.",
         },
         {
-          q: "Can I use Trimed Al in an emergency?",
-          a: "No. If you are experiencing a medical emergency, please call your local emergency services (like 911) immediately. Trimed Al is for informational purposes and non-urgent health guidance.",
+          q: "Can I use DocLink in an emergency?",
+          a: "No. If you are experiencing a medical emergency, please call your local emergency services (like 911) immediately. DocLink is for informational purposes and non-urgent health guidance.",
         },
       ],
     },
@@ -135,7 +135,7 @@ export default function FAQPage() {
               variants={fadeUp}
               className="mx-auto mt-6 max-w-2xl text-base text-muted-foreground sm:text-xl"
             >
-              Find quick answers to your questions about Trimed Al, security,
+              Find quick answers to your questions about DocLink, security,
               and how we can help you.
             </motion.p>
 
@@ -303,7 +303,7 @@ export default function FAQPage() {
         <section className="relative overflow-hidden bg-white">
           <CTASection
             title="Ready to transform your healthcare?"
-            description="Join thousands of users who trust Trimed Al for their health journey."
+            description="Join thousands of users who trust DocLink for their health journey."
             primaryBtnText="Get Started Free"
             primaryBtnLink={`${process.env.NEXT_PUBLIC_APP_URL}/signup`}
             secondaryBtnText="Learn More"
