@@ -85,3 +85,10 @@ export async function getPatientLocation(): Promise<PatientLocation> {
 export function clearPatientLocation() {
   sessionStorage.removeItem(SESSION_KEY);
 }
+
+/** Serialize a PatientLocation to a plain string suitable for the n8n webhook `location` field. */
+export function formatLocationForWebhook(loc: PatientLocation): string | undefined {
+  if (!loc) return undefined;
+  if (loc.mode === "city") return loc.city;
+  return `${loc.lat},${loc.lng}`;
+}

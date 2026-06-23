@@ -20,6 +20,17 @@ const WEBHOOK_URL =
   process.env.N8N_CHAT_WEBHOOK_URL ||
   'https://fyp2026.app.n8n.cloud/webhook/55479a0c-6a9f-4083-ad95-8cbe28d9e828'
 
+function resolveWebhookLocation(
+  location: string | undefined,
+  patient: { city: string | null; latitude: number | null; longitude: number | null }
+): string | null {
+  if (location?.trim()) return location.trim()
+  if (patient.city?.trim()) return patient.city.trim()
+  if (patient.latitude != null && patient.longitude != null)
+    return `${patient.latitude},${patient.longitude}`
+  return null
+}
+
 export const sendMessage = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { message, location, sessionId } = messageSchema.parse(req.body)
@@ -70,7 +81,7 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
         medicalHistory: patient.medicalHistory,
         allergies: patient.allergies,
       },
-      location: location || patient.city,
+      location: resolveWebhookLocation(location, patient),
       timestamp: new Date().toISOString(),
     }
 

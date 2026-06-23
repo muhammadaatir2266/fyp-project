@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { sendMessage } from "@/services/chat.service";
+import { getPatientLocation, formatLocationForWebhook } from "@/lib/location";
 import Link from "next/link";
 
 interface PredictionItem {
@@ -44,10 +45,18 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
   const [isLoading, setIsLoading] = useState(false);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const locationRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    // Prefetch location once on mount so it's ready when the first message is sent
+    getPatientLocation()
+      .then((loc) => { locationRef.current = formatLocationForWebhook(loc) ?? undefined; })
+      .catch(() => {});
+  }, []);
 
   const handleSendMessage = async () => {
     if (!input.trim() || isLoading) return;
@@ -65,7 +74,12 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
     setMessages((prev) => [...prev, userMessage]);
 
     try {
-      const response = await sendMessage(currentInput, undefined, sessionId);
+      // If mount prefetch hasn't resolved yet, try once more (handles slow permission grant)
+      if (!locationRef.current) {
+        const loc = await getPatientLocation().catch(() => null);
+        locationRef.current = formatLocationForWebhook(loc) ?? undefined;
+      }
+      const response = await sendMessage(currentInput, locationRef.current, sessionId);
 
       if (response.success && response.data) {
         if (response.sessionId) setSessionId(response.sessionId);

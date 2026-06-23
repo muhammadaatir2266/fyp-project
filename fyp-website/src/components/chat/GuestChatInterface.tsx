@@ -5,6 +5,7 @@ import { Send, Bot, User, Loader2, Stethoscope, LogIn, UserPlus, Lock, ArrowRigh
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { sendGuestMessage, saveGuestSnapshot } from "@/lib/guest-chat";
+import { getGuestLocation } from "@/lib/location";
 import {
   getOrCreateGuestSessionId,
   isGuestChatCompleted,
@@ -48,10 +49,16 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
   const [topSpecialty, setTopSpecialty] = useState<string | undefined>(undefined);
   const [guestSessionId, setGuestSessionId] = useState<string>("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const locationRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const id = getOrCreateGuestSessionId();
     setGuestSessionId(id);
+
+    // Prefetch location so it's ready when the first message is sent
+    getGuestLocation()
+      .then((loc) => { locationRef.current = loc; })
+      .catch(() => {});
 
     // If chat was already completed in a previous session, restore locked state
     if (isGuestChatCompleted()) {
@@ -92,7 +99,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
     ]);
 
     try {
-      const response = await sendGuestMessage(text, guestSessionId);
+      const response = await sendGuestMessage(text, guestSessionId, locationRef.current);
 
       const predictions = response.data.prediction ?? [];
 
