@@ -122,11 +122,23 @@ function flattenDoctorRecommendations(raw: unknown, source: string): DoctorRecom
  * Supports two formats:
  *   - Legacy: `{ message, prediction/predictions, symptoms }`
  *   - New:    `[{ predicted_disease, doctor_recommendations, source, message? }]`
+ *
+ * Also handles n8n output-wrapper: `{ output: [...] }` or `{ output: "..." }`
  */
 export function parseN8nChatResponse(data: unknown): ParsedN8nResponse {
+  // ── Unwrap n8n output wrapper: { output: ... } ────────────────────
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const d = data as Record<string, unknown>
+    if (d.output !== undefined) {
+      data = d.output
+    }
+  }
+
   // ── New array format ──────────────────────────────────────────────
-  if (Array.isArray(data) && data.length > 0 && (data[0] as RawNewItem)?.predicted_disease !== undefined) {
-    const item = data[0] as RawNewItem
+  if (Array.isArray(data) && data.length > 0) {
+    const first = data[0] as RawNewItem
+    if (first && typeof first === 'object' && 'predicted_disease' in first) {
+    const item = first
     const disease = item.predicted_disease ?? ''
     const source = item.source ?? 'internal_db'
 
@@ -147,11 +159,12 @@ export function parseN8nChatResponse(data: unknown): ParsedN8nResponse {
       (disease ? `Based on your symptoms, a possible condition is ${disease}.` : 'I received your message. How can I help you?')
 
     return {
-      message,
-      predictions,
-      symptoms: [],
-      doctorRecommendations,
-      diseaseDetected: predictions.length > 0,
+        message,
+        predictions,
+        symptoms: [],
+        doctorRecommendations,
+        diseaseDetected: predictions.length > 0,
+      }
     }
   }
 
@@ -165,7 +178,12 @@ export function parseN8nChatResponse(data: unknown): ParsedN8nResponse {
     const inner = d.data as Record<string, unknown>
     message = typeof inner === 'string' ? inner : (inner.message as string) || (inner.response as string) || ''
   } else {
-    message = (d?.message as string) || (d?.response as string) || 'I received your message. How can I help you?'
+    message =
+      (d?.message as string) ||
+      (d?.response as string) ||
+      (d?.output as string) ||
+      (d?.text as string) ||
+      'I received your message. How can I help you?'
   }
 
   const rawPredictions: Array<{ disease: string; confidence: number; specialty?: string }> =

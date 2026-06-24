@@ -93,6 +93,7 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     })
 
     const n8nData = webhookResponse.data
+    console.log('[n8n raw response]', JSON.stringify(n8nData))
     const parsed = parseN8nChatResponse(n8nData)
     const responseMessage = parsed.message
     const normalizedPredictions = parsed.predictions
@@ -213,6 +214,7 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
     })
 
     const n8nData = webhookResponse.data
+    console.log('[n8n guest raw response]', JSON.stringify(n8nData))
     const parsed = parseN8nChatResponse(n8nData)
 
     res.json({
