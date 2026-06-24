@@ -3,6 +3,7 @@ import axios from 'axios'
 import { prisma } from '../lib/prisma'
 import { AppError } from '../middleware/error.middleware'
 import { z } from 'zod'
+import { parseN8nChatResponse } from '../lib/n8n-response'
 
 const messageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
@@ -92,16 +93,10 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     })
 
     const n8nData = webhookResponse.data
-    let responseMessage = ''
-
-    if (typeof n8nData === 'string') {
-      responseMessage = n8nData
-    } else if (n8nData?.data) {
-      if (typeof n8nData.data === 'string') responseMessage = n8nData.data
-      else responseMessage = n8nData.data.message || n8nData.data.response || ''
-    } else {
-      responseMessage = n8nData?.message || n8nData?.response || 'I received your message. How can I help you?'
-    }
+    const parsed = parseN8nChatResponse(n8nData)
+    const responseMessage = parsed.message
+    const normalizedPredictions = parsed.predictions
+    const reportedSymptoms = parsed.symptoms
 
     // Persist the assistant reply
     await prisma.chatMessage.create({
@@ -113,16 +108,6 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     })
 
     // Persist predictions if returned by n8n
-    // n8n may include a specialty per prediction: { disease, confidence, specialty }
-    const rawPredictions: Array<{ disease: string; confidence: number; specialty?: string }> =
-      n8nData?.prediction || n8nData?.predictions || []
-
-    const normalizedPredictions = rawPredictions.map((p) =>
-      typeof p === 'string'
-        ? { disease: p, confidence: 1.0, specialty: undefined }
-        : { disease: p.disease, confidence: p.confidence ?? 1.0, specialty: p.specialty }
-    )
-
     if (normalizedPredictions.length > 0) {
       for (const pred of normalizedPredictions) {
         // Resolve specialty if provided
@@ -159,14 +144,13 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
             chatSessionId: session.id,
             diseaseId: disease.id,
             confidence: pred.confidence,
-            inputSymptoms: n8nData?.symptoms || [],
+            inputSymptoms: reportedSymptoms,
           },
         })
       }
     }
 
     // Persist reported symptoms if returned
-    const reportedSymptoms: string[] = n8nData?.symptoms || []
     if (reportedSymptoms.length > 0) {
       for (const symptomName of reportedSymptoms) {
         let symptom = await prisma.symptom.findUnique({ where: { name: symptomName } })
@@ -195,7 +179,8 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
       data: {
         message: responseMessage,
         prediction: normalizedPredictions.length > 0 ? normalizedPredictions : undefined,
-        symptoms: n8nData?.symptoms,
+        symptoms: reportedSymptoms.length > 0 ? reportedSymptoms : undefined,
+        doctorRecommendations: parsed.doctorRecommendations,
       },
     })
   } catch (error) {
@@ -228,33 +213,16 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
     })
 
     const n8nData = webhookResponse.data
-    let responseMessage = ''
-
-    if (typeof n8nData === 'string') {
-      responseMessage = n8nData
-    } else if (n8nData?.data) {
-      if (typeof n8nData.data === 'string') responseMessage = n8nData.data
-      else responseMessage = n8nData.data.message || n8nData.data.response || ''
-    } else {
-      responseMessage = n8nData?.message || n8nData?.response || 'I received your message. How can I help you?'
-    }
-
-    const rawPredictions: Array<{ disease: string; confidence: number; specialty?: string }> =
-      n8nData?.prediction || n8nData?.predictions || []
-    const predictions = rawPredictions.map((p) =>
-      typeof p === 'string'
-        ? { disease: p, confidence: 1.0, specialty: undefined }
-        : { disease: p.disease, confidence: p.confidence ?? 1.0, specialty: p.specialty }
-    )
+    const parsed = parseN8nChatResponse(n8nData)
 
     res.json({
       success: true,
-      diseaseDetected: predictions.length > 0,
+      diseaseDetected: parsed.diseaseDetected,
       data: {
-        message: responseMessage,
-        prediction: predictions.length > 0 ? predictions : undefined,
-        symptoms: n8nData?.symptoms,
-        // doctors intentionally omitted for guests
+        message: parsed.message,
+        prediction: parsed.predictions.length > 0 ? parsed.predictions : undefined,
+        symptoms: parsed.symptoms.length > 0 ? parsed.symptoms : undefined,
+        doctorRecommendations: parsed.doctorRecommendations,
       },
     })
   } catch (error) {

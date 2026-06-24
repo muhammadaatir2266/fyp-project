@@ -13,8 +13,9 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { sendMessage } from "@/services/chat.service";
+import { sendMessage, type DoctorRecommendations } from "@/services/chat.service";
 import { getPatientLocation, formatLocationForWebhook } from "@/lib/location";
+import { DoctorRecommendations as DoctorRecommendationsUI } from "@/components/chat/DoctorRecommendations";
 import Link from "next/link";
 
 interface PredictionItem {
@@ -29,6 +30,7 @@ type Message = {
   content: string;
   timestamp: Date;
   predictions?: PredictionItem[];
+  doctorRecommendations?: DoctorRecommendations;
 };
 
 export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
@@ -93,6 +95,7 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
             "I received your message.",
           timestamp: new Date(),
           predictions: normalizePredictions(response.data.prediction),
+          doctorRecommendations: response.data.doctorRecommendations,
         };
         setMessages((prev) => [...prev, aiMessage]);
       } else {
@@ -258,6 +261,11 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
                       </Link>
                     </Button>
                   </div>
+                )}
+
+                {/* Recommended doctors from n8n */}
+                {message.doctorRecommendations && (
+                  <DoctorRecommendationsUI recommendations={message.doctorRecommendations} />
                 )}
               </div>
             </div>

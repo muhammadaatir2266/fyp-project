@@ -40,12 +40,18 @@ export interface GuestPrediction {
   specialty?: string;
 }
 
+export interface GuestDoctorRecommendations {
+  source: "internal_db" | "google_maps";
+  doctors: unknown[]; // raw — typed on render via guest-chat.ts DoctorRecommendations
+}
+
 export interface GuestContext {
   guestSessionId: string;
   specialty?: string;
   predictions: GuestPrediction[];
   symptoms?: string[];
   detectedAt: string;
+  doctorRecommendations?: GuestDoctorRecommendations;
 }
 
 export function saveGuestContext(ctx: GuestContext): void {

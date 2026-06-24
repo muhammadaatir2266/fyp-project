@@ -1,6 +1,36 @@
 const AUTH_API_URL =
   process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:5000/api";
 
+export interface InternalDoctorItem {
+  source: "internal_db";
+  id: string;
+  name: string;
+  specialty: string;
+  city: string;
+  rating: number;
+  experience: number;
+  consultationFee: number;
+  workingHours?: { from: string; to: string };
+  workingDays?: string[];
+}
+
+export interface GoogleDoctorItem {
+  source: "google_maps";
+  name: string;
+  rating: number;
+  totalReviews?: number;
+  address?: string;
+  location?: { lat: number; lng: number };
+  googleMapsUrl?: string;
+}
+
+export type RecommendedDoctorItem = InternalDoctorItem | GoogleDoctorItem;
+
+export interface DoctorRecommendations {
+  source: "internal_db" | "google_maps";
+  doctors: RecommendedDoctorItem[];
+}
+
 export interface GuestChatResponse {
   success: boolean;
   diseaseDetected: boolean;
@@ -8,6 +38,7 @@ export interface GuestChatResponse {
     message: string;
     prediction?: Array<{ disease: string; confidence: number; specialty?: string }>;
     symptoms?: string[];
+    doctorRecommendations?: DoctorRecommendations;
   };
 }
 

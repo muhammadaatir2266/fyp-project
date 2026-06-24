@@ -4,8 +4,9 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Loader2, Stethoscope, LogIn, UserPlus, Lock, ArrowRight, CalendarCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { sendGuestMessage, saveGuestSnapshot } from "@/lib/guest-chat";
+import { sendGuestMessage, saveGuestSnapshot, type DoctorRecommendations } from "@/lib/guest-chat";
 import { getGuestLocation } from "@/lib/location";
+import { DoctorRecommendations as DoctorRecommendationsUI } from "@/components/chat/DoctorRecommendations";
 import {
   getOrCreateGuestSessionId,
   isGuestChatCompleted,
@@ -14,6 +15,7 @@ import {
   getGuestContext,
   buildGuestAuthHref,
   type GuestPrediction,
+  type GuestDoctorRecommendations,
 } from "@/lib/guest-session";
 
 interface PredictionItem {
@@ -28,6 +30,7 @@ interface Message {
   content: string;
   timestamp: Date;
   predictions?: PredictionItem[];
+  doctorRecommendations?: DoctorRecommendations;
 }
 
 const cn = (...classes: (string | undefined | false)[]) =>
@@ -75,6 +78,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
               content: "Welcome back! Here are your symptom analysis results from your last session.",
               timestamp: new Date(ctx.detectedAt),
               predictions: ctx.predictions,
+              doctorRecommendations: ctx.doctorRecommendations as DoctorRecommendations | undefined,
             },
           ]);
         }
@@ -103,6 +107,8 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
 
       const predictions = response.data.prediction ?? [];
 
+      const doctorRecs = response.data.doctorRecommendations;
+
       setMessages((prev) => [
         ...prev,
         {
@@ -111,6 +117,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
           content: response.data.message || "I received your message.",
           timestamp: new Date(),
           predictions: predictions.length > 0 ? predictions : undefined,
+          doctorRecommendations: doctorRecs,
         },
       ]);
 
@@ -126,6 +133,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
           predictions: predictions as GuestPrediction[],
           symptoms: response.data.symptoms,
           detectedAt: new Date().toISOString(),
+          doctorRecommendations: doctorRecs as GuestDoctorRecommendations | undefined,
         };
         saveGuestContext(ctx);
 
@@ -275,6 +283,11 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
                         For informational purposes only. Please consult a qualified doctor.
                       </p>
                     </div>
+                  )}
+
+                  {/* Recommended doctors from n8n */}
+                  {msg.doctorRecommendations && (
+                    <DoctorRecommendationsUI recommendations={msg.doctorRecommendations} />
                   )}
                 </div>
               </div>
