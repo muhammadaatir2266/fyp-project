@@ -4,6 +4,7 @@ import { prisma } from '../lib/prisma'
 import { AppError } from '../middleware/error.middleware'
 import { z } from 'zod'
 import { parseN8nChatResponse } from '../lib/n8n-response'
+import { parseCoordString, reverseGeocode } from '../lib/geocode'
 
 const messageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
@@ -21,14 +22,30 @@ const WEBHOOK_URL =
   process.env.N8N_CHAT_WEBHOOK_URL ||
   'https://fyp2026.app.n8n.cloud/webhook/55479a0c-6a9f-4083-ad95-8cbe28d9e828'
 
-function resolveWebhookLocation(
-  location: string | undefined,
-  patient: { city: string | null; latitude: number | null; longitude: number | null }
-): string | null {
-  if (location?.trim()) return location.trim()
-  if (patient.city?.trim()) return patient.city.trim()
-  if (patient.latitude != null && patient.longitude != null)
-    return `${patient.latitude},${patient.longitude}`
+async function resolveN8nLocation(opts: {
+  clientLocation?: string
+  patient?: { city: string | null; latitude: number | null; longitude: number | null }
+}): Promise<string | null> {
+  // 1. Profile city (authenticated) — most reliable, already human-readable
+  if (opts.patient?.city?.trim()) return opts.patient.city.trim()
+
+  // 2. GPS coords: client string first, then profile lat/lng
+  const fromClient = opts.clientLocation ? parseCoordString(opts.clientLocation) : null
+  const lat = fromClient?.lat ?? opts.patient?.latitude ?? null
+  const lng = fromClient?.lng ?? opts.patient?.longitude ?? null
+
+  if (lat != null && lng != null) {
+    const place = await reverseGeocode(lat, lng)
+    if (place) return place
+    // Geocoding unavailable — fall back to raw coords so n8n still gets something
+    return `${lat},${lng}`
+  }
+
+  // 3. Client sent a plain city/area string (not coords)
+  if (opts.clientLocation?.trim() && !parseCoordString(opts.clientLocation)) {
+    return opts.clientLocation.trim()
+  }
+
   return null
 }
 
@@ -81,8 +98,9 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
         gender: patient.gender,
         medicalHistory: patient.medicalHistory,
         allergies: patient.allergies,
+        city: patient.city,
       },
-      location: resolveWebhookLocation(location, patient),
+      location: await resolveN8nLocation({ clientLocation: location, patient }),
       timestamp: new Date().toISOString(),
     }
 
@@ -204,7 +222,7 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
     const webhookPayload = {
       guest_session_id: guestSessionId,
       message,
-      location: location || null,
+      location: await resolveN8nLocation({ clientLocation: location }),
       timestamp: new Date().toISOString(),
     }
 

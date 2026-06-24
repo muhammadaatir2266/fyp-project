@@ -23,6 +23,14 @@ Referenced in patient backend `env.example` as `N8N_CHAT_WEBHOOK_URL`.
 }
 ```
 
+**`location` field semantics:**
+- Always a **city or locality name** (e.g. `"Karachi"`, `"Chakwal"`, `"Gulberg"`) when possible.
+- Priority: patient profile city → Google reverse-geocoded city from GPS → raw `"lat,lng"` fallback.
+- `user_info.city` is also included for authenticated patients as an additional reference.
+- Use `{{ $json.location }}` in the doctor-lookup node (`city=<location>`).
+
+**Guest chat payload** (`POST /api/chat/guest/message`) uses the same `location` field with the same semantics; `patient_id` and `session_id` are replaced by `guest_session_id`.
+
 ### n8n workflow nodes:
 
 1. **Webhook Trigger** — receives POST from patient backend
