@@ -119,26 +119,14 @@ function flattenDoctorRecommendations(raw: unknown, source: string): DoctorRecom
 /**
  * Normalizes any n8n webhook response into a consistent shape.
  *
- * Supports two formats:
- *   - Legacy: `{ message, prediction/predictions, symptoms }`
- *   - New:    `[{ predicted_disease, doctor_recommendations, source, message? }]`
- *
- * Also handles n8n output-wrapper: `{ output: [...] }` or `{ output: "..." }`
+ * Handles three shapes n8n can return:
+ *   1. New object:  `{ predicted_disease, doctor_recommendations, source }`
+ *   2. New array:   `[{ predicted_disease, doctor_recommendations, source }]`
+ *   3. Legacy:      `{ message, prediction/predictions, symptoms, status? }`
  */
 export function parseN8nChatResponse(data: unknown): ParsedN8nResponse {
-  // ── Unwrap n8n output wrapper: { output: ... } ────────────────────
-  if (data && typeof data === 'object' && !Array.isArray(data)) {
-    const d = data as Record<string, unknown>
-    if (d.output !== undefined) {
-      data = d.output
-    }
-  }
-
-  // ── New array format ──────────────────────────────────────────────
-  if (Array.isArray(data) && data.length > 0) {
-    const first = data[0] as RawNewItem
-    if (first && typeof first === 'object' && 'predicted_disease' in first) {
-    const item = first
+  // Helper: parse a single new-format item (object with predicted_disease)
+  function parseNewItem(item: RawNewItem): ParsedN8nResponse {
     const disease = item.predicted_disease ?? ''
     const source = item.source ?? 'internal_db'
 
@@ -156,19 +144,36 @@ export function parseN8nChatResponse(data: unknown): ParsedN8nResponse {
 
     const message =
       (item.message as string | undefined)?.trim() ||
-      (disease ? `Based on your symptoms, a possible condition is ${disease}.` : 'I received your message. How can I help you?')
+      (disease
+        ? `Based on your symptoms, a possible condition is ${disease}.`
+        : 'I received your message. How can I help you?')
 
     return {
-        message,
-        predictions,
-        symptoms: [],
-        doctorRecommendations,
-        diseaseDetected: predictions.length > 0,
-      }
+      message,
+      predictions,
+      symptoms: [],
+      doctorRecommendations,
+      diseaseDetected: predictions.length > 0,
     }
   }
 
-  // ── Legacy object format ──────────────────────────────────────────
+  // ── New object format: { predicted_disease, doctor_recommendations, source } ──
+  if (data && typeof data === 'object' && !Array.isArray(data)) {
+    const d = data as Record<string, unknown>
+    if ('predicted_disease' in d) {
+      return parseNewItem(d as RawNewItem)
+    }
+  }
+
+  // ── New array format: [{ predicted_disease, doctor_recommendations, source }] ──
+  if (Array.isArray(data) && data.length > 0) {
+    const first = data[0] as Record<string, unknown>
+    if (first && typeof first === 'object' && 'predicted_disease' in first) {
+      return parseNewItem(first as RawNewItem)
+    }
+  }
+
+  // ── Legacy object format: { message, prediction/predictions, symptoms } ──────
   const d = data as Record<string, unknown> | null | undefined
 
   let message = ''
