@@ -38,7 +38,6 @@ import {
   Languages,
   ThumbsUp,
   SlidersHorizontal,
-  Phone,
   PhoneCall,
 } from "lucide-react";
 import Link from "next/link";
@@ -704,15 +703,6 @@ function DoctorsContent() {
                         Book Online
                       </Link>
                     </Button>
-
-                    {doctor.phone && (
-                      <Button size="sm" variant="outline" className="gap-1.5" asChild>
-                        <a href={`tel:${doctor.phone}`}>
-                          <Phone className="h-3.5 w-3.5" />
-                          Call Clinic
-                        </a>
-                      </Button>
-                    )}
 
                     {bookingConfig.callBookingEnabled && (
                       <Button
