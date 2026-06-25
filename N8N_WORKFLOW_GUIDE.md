@@ -10,6 +10,7 @@ Referenced in patient backend `env.example` as `N8N_CHAT_WEBHOOK_URL`.
 {
   "patient_id": "uuid",
   "session_id": "uuid",
+  "conversation_id": "uuid",
   "message": "I have a headache and fever",
   "user_info": {
     "email": "patient@example.com",
@@ -23,13 +24,20 @@ Referenced in patient backend `env.example` as `N8N_CHAT_WEBHOOK_URL`.
 }
 ```
 
+**`conversation_id` field (n8n chat memory key):**
+- Always present in **both** the authenticated and guest payloads — use it as the single **Session Key** for the Postgres Chat Memory node: `{{ $json.conversation_id }}`.
+- Authenticated: equals the `ChatSession.id`, unless the session was claimed from a guest, in which case it equals the original guest UUID (`memoryKey`) so the thread continues across signup.
+- Guest: equals `guest_session_id`.
+- This keeps one durable memory thread per conversation, including across the guest → signup transition.
+- Recommended: set the memory node's **Context Window Length** to ~10-20 messages, and periodically prune old rows from `n8n_chat_histories` (never-converted guest threads accumulate otherwise).
+
 **`location` field semantics:**
 - Always a **city or locality name** (e.g. `"Karachi"`, `"Chakwal"`, `"Gulberg"`) when possible.
 - Priority: patient profile city → Google reverse-geocoded city from GPS → raw `"lat,lng"` fallback.
 - `user_info.city` is also included for authenticated patients as an additional reference.
 - Use `{{ $json.location }}` in the doctor-lookup node (`city=<location>`).
 
-**Guest chat payload** (`POST /api/chat/guest/message`) uses the same `location` field with the same semantics; `patient_id` and `session_id` are replaced by `guest_session_id`.
+**Guest chat payload** (`POST /api/chat/guest/message`) uses the same `location` field with the same semantics; `patient_id` and `session_id` are replaced by `guest_session_id`. It also includes `conversation_id` (equal to `guest_session_id`) so the memory node can use the same Session Key expression for guests and authenticated patients.
 
 ### n8n workflow nodes:
 

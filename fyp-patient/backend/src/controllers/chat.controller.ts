@@ -88,6 +88,9 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     const webhookPayload = {
       patient_id: patient.id,
       session_id: session.id,
+      // Stable key for n8n Postgres chat memory. Reuses the guest thread's key
+      // when this session was claimed from a guest, so memory continues across signup.
+      conversation_id: session.memoryKey ?? session.id,
       message,
       user_info: {
         email: user.email,
@@ -221,6 +224,9 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
 
     const webhookPayload = {
       guest_session_id: guestSessionId,
+      // Unified memory key (matches authenticated payload) so n8n keys Postgres
+      // chat memory on one field for both guest and signed-in conversations.
+      conversation_id: guestSessionId,
       message,
       location: await resolveN8nLocation({ clientLocation: location }),
       timestamp: new Date().toISOString(),
@@ -317,6 +323,9 @@ export const claimGuestSnapshot = async (req: Request, res: Response, next: Next
     const session = await prisma.chatSession.create({
       data: {
         patientId: patient.id,
+        // Carry the guest UUID forward as the memory key so the n8n Postgres
+        // chat thread started as a guest continues seamlessly after signup.
+        memoryKey: guestSessionId,
         messages: {
           create: {
             role: 'assistant',

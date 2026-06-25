@@ -305,6 +305,11 @@ model ChatSession {
   startedAt DateTime  @default(now())
   endedAt   DateTime?
 
+  // Stable key for n8n Postgres chat memory. Carries the guest UUID forward on
+  // claim so the conversation thread continues across signup; null for sessions
+  // created directly by authenticated users (falls back to id).
+  memoryKey String?
+
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
