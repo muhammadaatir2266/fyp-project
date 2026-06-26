@@ -1,0 +1,122 @@
+[
+  {
+    "name": "Cardiology",
+    "description": "Heart and cardiovascular system specialist",
+    "iconName": "heart",
+    "aliases": ["Cardiologist", "Heart Specialist", "Cardiovascular Specialist", "Heart Doctor"]
+  },
+  {
+    "name": "General Medicine",
+    "description": "Primary care and general health issues",
+    "iconName": "stethoscope",
+    "aliases": ["General Physician", "GP", "General Practitioner", "Internal Medicine", "Family Medicine", "Family Doctor", "General Doctor"]
+  },
+  {
+    "name": "Pediatrics",
+    "description": "Medical care for infants, children, and adolescents",
+    "iconName": "baby",
+    "aliases": ["Pediatrician", "Child Specialist", "Children's Doctor", "Child Doctor"]
+  },
+  {
+    "name": "Dermatology",
+    "description": "Skin, hair, and nail conditions",
+    "iconName": "droplet",
+    "aliases": ["Dermatologist", "Skin Specialist", "Skin Doctor"]
+  },
+  {
+    "name": "Orthopedics",
+    "description": "Bones, joints, ligaments, and muscles",
+    "iconName": "bone",
+    "aliases": ["Orthopedic Surgeon", "Orthopedist", "Bone Specialist", "Joint Specialist", "Orthopaedics", "Orthopaedist"]
+  },
+  {
+    "name": "Neurology",
+    "description": "Brain and nervous system disorders",
+    "iconName": "brain",
+    "aliases": ["Neurologist", "Brain Specialist", "Nerve Specialist", "Neurological Specialist"]
+  },
+  {
+    "name": "Psychiatry",
+    "description": "Mental health and behavioral disorders",
+    "iconName": "brain",
+    "aliases": ["Psychiatrist", "Mental Health Specialist", "Mental Health Doctor", "Behavioral Health"]
+  },
+  {
+    "name": "Gastroenterology",
+    "description": "Digestive system disorders",
+    "iconName": "activity",
+    "aliases": ["Gastroenterologist", "GI Specialist", "Digestive Specialist", "Stomach Specialist", "GI Doctor"]
+  },
+  {
+    "name": "Pulmonology",
+    "description": "Lung and respiratory conditions",
+    "iconName": "wind",
+    "aliases": ["Pulmonologist", "Lung Specialist", "Respiratory Specialist", "Chest Specialist", "Chest Doctor"]
+  },
+  {
+    "name": "ENT",
+    "description": "Ear, nose, and throat specialist",
+    "iconName": "ear",
+    "aliases": ["ENT Specialist", "Otolaryngologist", "Ear Nose Throat", "Ear Doctor", "Otolaryngology"]
+  },
+  {
+    "name": "Urology",
+    "description": "Urinary tract and male reproductive system",
+    "iconName": "droplets",
+    "aliases": ["Urologist", "Urinary Specialist", "Kidney and Bladder Specialist"]
+  },
+  {
+    "name": "Ophthalmology",
+    "description": "Eye diseases and vision problems",
+    "iconName": "eye",
+    "aliases": ["Ophthalmologist", "Eye Specialist", "Eye Doctor", "Eye Surgeon"]
+  },
+  {
+    "name": "Obstetrics & Gynecology",
+    "description": "Female reproductive health, pregnancy, and childbirth",
+    "iconName": "heart-pulse",
+    "aliases": ["OB-GYN", "Gynecologist", "Obstetrician", "OB/GYN", "Women's Health Specialist", "Gynaecology", "Gynaecologist"]
+  },
+  {
+    "name": "Endocrinology",
+    "description": "Hormonal and metabolic disorders including diabetes and thyroid",
+    "iconName": "activity",
+    "aliases": ["Endocrinologist", "Diabetes Specialist", "Thyroid Specialist", "Hormone Specialist"]
+  },
+  {
+    "name": "Nephrology",
+    "description": "Kidney diseases and disorders",
+    "iconName": "filter",
+    "aliases": ["Nephrologist", "Kidney Specialist", "Kidney Doctor", "Renal Specialist"]
+  },
+  {
+    "name": "Oncology",
+    "description": "Cancer diagnosis and treatment",
+    "iconName": "shield",
+    "aliases": ["Oncologist", "Cancer Specialist", "Cancer Doctor", "Tumor Specialist"]
+  },
+  {
+    "name": "Rheumatology",
+    "description": "Autoimmune and inflammatory joint diseases",
+    "iconName": "zap",
+    "aliases": ["Rheumatologist", "Arthritis Specialist", "Joint Disease Specialist", "Autoimmune Specialist"]
+  },
+  {
+    "name": "Hematology",
+    "description": "Blood disorders and diseases",
+    "iconName": "droplet",
+    "aliases": ["Hematologist", "Blood Specialist", "Blood Doctor"]
+  },
+  {
+    "name": "Infectious Disease",
+    "description": "Infectious and communicable diseases",
+    "iconName": "shield-alert",
+    "aliases": ["Infectious Disease Specialist", "ID Specialist", "Infection Specialist"]
+  },
+  {
+    "name": "General Surgery",
+    "description": "Surgical treatment of abdominal, digestive, and other conditions",
+    "iconName": "scissors",
+    "aliases": ["General Surgeon", "Surgeon", "Surgical Specialist"]
+  }
+]

@@ -42,28 +42,46 @@ Referenced in patient backend `env.example` as `N8N_CHAT_WEBHOOK_URL`.
 ### n8n workflow nodes:
 
 1. **Webhook Trigger** — receives POST from patient backend
-2. **OpenAI Chat** — System prompt: _"You are a medical assistant. Analyze the patient's symptoms conversationally. Ask follow-up questions if unclear. When you have enough info, identify 1-3 possible conditions with confidence and recommend a specialist."_  
-   Pass: `{{ $json.message }}` + conversation history from previous messages if available
-3. **Extract Symptoms** — Parse OpenAI response for symptom list (or use a second OpenAI call with function-calling to extract structured data)
-4. **ML Predict (HTTP)** — `POST http://localhost:8000/predict` (or admin API `/api/v1/ml/predict`)  
+2. **Load Specialties (HTTP — run once at workflow start or cache in static data)**  
+   `GET http://localhost:5000/api/auth/specialties`  
+   Returns `{ "specialties": [{ "id": "...", "name": "Cardiology" }, ...] }`  
+   Extract the names into a comma-separated list for injection into the LLM prompt.
+3. **OpenAI Chat** — Include the allowed specialty list in the system prompt so the LLM always picks an exact name:  
+   > _"You are a medical assistant. Analyze the patient's symptoms conversationally. When you have enough information, identify 1-3 possible conditions with confidence and recommend a specialist. You MUST choose the specialty from this exact list: Cardiology, General Medicine, Pediatrics, Dermatology, Orthopedics, Neurology, Psychiatry, Gastroenterology, Pulmonology, ENT, Urology, Ophthalmology, Obstetrics & Gynecology, Endocrinology, Nephrology, Oncology, Rheumatology, Hematology, Infectious Disease, General Surgery. Do not invent specialty names."_  
+   Pass: `{{ $json.message }}` + conversation history
+4. **Extract Symptoms** — Parse OpenAI response for symptom list (or use a second OpenAI call with function-calling to extract structured data)
+5. **ML Predict (HTTP)** — `POST http://localhost:8000/predict` (or admin API `/api/v1/ml/predict`)  
    Body: `{ "symptoms": ["headache", "fever"] }`  
    Response: `{ "predictions": [{ "disease": "Influenza", "confidence": 0.85 }] }`
-5. **Find Doctors (HTTP)** — `GET http://localhost:5000/api/doctors?specialty=<recommended>&city=<location>`  
-   (Use patient API; add a service API token or make it internal)
-6. **Respond** — Return structured JSON:
+6. **Find Doctors (HTTP)** — Use the canonical specialty name from step 3:  
+   `GET http://localhost:5000/api/doctors?specialty=<exact_name>&city=<location>`  
+   The `specialty` parameter is matched case-insensitively against canonical names and aliases — partial/substring matches are no longer accepted. If the specialty name is unknown, the API returns an empty list.  
+   Alternatively pass the specialty UUID directly: `?specialtyId=<uuid>` (preferred when you have the ID from step 2).
+7. **Respond** — Return structured JSON:
 ```json
 {
   "message": "Based on your symptoms...",
   "prediction": [
-    { "disease": "Influenza", "confidence": 0.85 },
-    { "disease": "Common Cold", "confidence": 0.65 }
+    { "disease": "Influenza", "confidence": 0.85, "specialty": "General Medicine" },
+    { "disease": "Common Cold", "confidence": 0.65, "specialty": "General Medicine" }
   ],
   "symptoms": ["headache", "fever"],
   "doctors": [
-    { "id": "...", "fullName": "Sarah Johnson", "specialty": { "name": "General Medicine" }, "city": "Karachi" }
+    { "id": "...", "name": "Dr. Sarah Johnson", "specialty": "General Medicine", "city": "Karachi" }
   ]
 }
 ```
+
+> **Important — specialty field format:**
+> - On `prediction[]` items: `specialty` is a plain **string** (e.g. `"General Medicine"`), not an object.
+> - On `doctors[]` items: `specialty` is also a plain **string** (the canonical name).
+> - Both must be exact names from the allowed list above. The patient backend maps them to canonical `Specialty` rows via name or alias matching; unknown names are logged and ignored (no new rows are created).
+
+### Canonical specialty list (as of last seed)
+
+Cardiology, General Medicine, Pediatrics, Dermatology, Orthopedics, Neurology, Psychiatry, Gastroenterology, Pulmonology, ENT, Urology, Ophthalmology, Obstetrics & Gynecology, Endocrinology, Nephrology, Oncology, Rheumatology, Hematology, Infectious Disease, General Surgery
+
+To keep this list up to date, fetch it dynamically at workflow start: `GET /api/auth/specialties` → use the `name` field of each returned specialty.
 
 ---
 

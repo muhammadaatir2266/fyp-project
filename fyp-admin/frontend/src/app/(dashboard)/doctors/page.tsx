@@ -211,6 +211,8 @@ export default function DoctorsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [verificationFilter, setVerificationFilter] = useState<'all' | 'PENDING' | 'APPROVED' | 'REJECTED'>('all');
+  const [specialtyFilter, setSpecialtyFilter] = useState('');
+  const [specialties, setSpecialties] = useState<{ id: string; name: string }[]>([]);
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
@@ -220,13 +222,21 @@ export default function DoctorsPage() {
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
+    api.get('/admin/specialties').then((data: { id: string; name: string }[]) => setSpecialties(data)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
     fetchDoctors();
-  }, [verificationFilter]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verificationFilter, specialtyFilter]);
 
   const fetchDoctors = async () => {
     try {
-      const params = verificationFilter !== 'all' ? `?verificationStatus=${verificationFilter}` : '';
-      const data = await api.get(`/admin/doctors${params}`);
+      const params = new URLSearchParams();
+      if (verificationFilter !== 'all') params.set('verificationStatus', verificationFilter);
+      if (specialtyFilter) params.set('specialty', specialtyFilter);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+      const data = await api.get(`/admin/doctors${qs}`);
       setDoctors(data);
     } catch (error) {
       console.error('Failed to fetch doctors:', error);
@@ -295,9 +305,7 @@ export default function DoctorsPage() {
   };
 
   const filteredDoctors = doctors.filter(doctor => {
-    const matchesSearch = `${doctor.firstName} ${doctor.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      doctor.specialty.name.toLowerCase().includes(searchTerm.toLowerCase());
-    
+    const matchesSearch = `${doctor.firstName} ${doctor.lastName}`.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesSearch;
   });
 
@@ -369,7 +377,7 @@ export default function DoctorsPage() {
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <Input
-                  placeholder="Search by name or specialty..."
+                  placeholder="Search by name…"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10 h-12 border-2 focus:border-teal-500"
@@ -383,8 +391,18 @@ export default function DoctorsPage() {
                   </button>
                 )}
               </div>
-              <div className="flex items-center space-x-2">
-                <Filter className="h-5 w-5 text-gray-400" />
+              <div className="flex items-center gap-3">
+                <select
+                  value={specialtyFilter}
+                  onChange={(e) => setSpecialtyFilter(e.target.value)}
+                  className="h-12 border-2 rounded-md px-3 text-sm focus:outline-none focus:border-teal-500 bg-white min-w-[180px]"
+                >
+                  <option value="">All Specialties</option>
+                  {specialties.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+                <Filter className="h-5 w-5 text-gray-400 shrink-0" />
                 <div className="flex space-x-2">
                   {(['all', 'PENDING', 'APPROVED', 'REJECTED'] as const).map((status) => (
                     <Button

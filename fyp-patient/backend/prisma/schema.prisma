@@ -237,6 +237,7 @@ model Specialty {
   name        String    @unique
   description String?
   iconName    String?
+  aliases     String[]  @default([])
 
   doctors     Doctor[]
   diseases    Disease[]

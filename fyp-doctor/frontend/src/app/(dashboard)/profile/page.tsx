@@ -122,6 +122,14 @@ export default function ProfilePage() {
             </div>
           )}
 
+          {profile.specialty && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-muted/50 rounded-lg border border-border/60">
+              <span className="text-sm font-medium text-muted-foreground">Specialty</span>
+              <Badge variant="secondary" className="text-sm font-semibold">{profile.specialty.name}</Badge>
+              <span className="text-xs text-muted-foreground ml-auto">Contact admin to change</span>
+            </div>
+          )}
+
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label htmlFor="firstName" className="text-sm font-medium">

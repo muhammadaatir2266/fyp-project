@@ -40,6 +40,8 @@ export interface Specialty {
   id: string;
   name: string;
   description?: string;
+  iconName?: string;
+  aliases: string[];
 }
 
 export interface Patient {

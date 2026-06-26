@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import api from "@/services/api.service";
 import { getDoctorReviews, type DoctorReview } from "@/services/reviews.service";
 import { getPatientLocation, clearPatientLocation, type PatientLocation } from "@/lib/location";
+import { getSpecialties, type Specialty } from "@/lib/auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -231,7 +232,8 @@ function DoctorsContent() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [specialtyFilter, setSpecialtyFilter] = useState(specialtyFromUrl);
+  const [specialtyId, setSpecialtyId] = useState("");
+  const [specialties, setSpecialties] = useState<Specialty[]>([]);
   const [cityFilter, setCityFilter] = useState("");
   const [total, setTotal] = useState(0);
 
@@ -257,7 +259,17 @@ function DoctorsContent() {
   const [reviewsDoctor, setReviewsDoctor] = useState<Doctor | null>(null);
   const locationInitialized = useRef(false);
 
-  useEffect(() => { setSpecialtyFilter(specialtyFromUrl); }, [specialtyFromUrl]);
+  // Load canonical specialty list and resolve URL ?specialty= name to an ID
+  useEffect(() => {
+    getSpecialties().then((list) => {
+      setSpecialties(list);
+      if (specialtyFromUrl) {
+        const match = list.find((s) => s.name.toLowerCase() === specialtyFromUrl.toLowerCase());
+        if (match) setSpecialtyId(match.id);
+      }
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     api.get("/config/booking")
@@ -318,7 +330,7 @@ function DoctorsContent() {
     try {
       const params: Record<string, string> = {};
       if (search) params.name = search;
-      if (specialtyFilter) params.specialty = specialtyFilter;
+      if (specialtyId) params.specialtyId = specialtyId;
       if (maxFee) params.maxFee = maxFee;
       if (genderFilter) params.gender = genderFilter;
       if (languageFilter) params.language = languageFilter;
@@ -341,7 +353,7 @@ function DoctorsContent() {
     } finally {
       setLoading(false);
     }
-  }, [search, specialtyFilter, cityFilter, nearbyEnabled, patientLoc, radiusKm, maxFee, genderFilter, languageFilter, available48h, sortBy]);
+  }, [search, specialtyId, cityFilter, nearbyEnabled, patientLoc, radiusKm, maxFee, genderFilter, languageFilter, available48h, sortBy]);
 
   useEffect(() => {
     const timer = setTimeout(fetchDoctors, 400);
@@ -456,14 +468,19 @@ function DoctorsContent() {
       )}
 
       {/* Active specialty filter banner (non-onboarding) */}
-      {specialtyFromUrl && !nearbyFromUrl && (
+      {specialtyId && !nearbyFromUrl && (
         <div className="flex items-center gap-2 text-sm bg-primary/5 border border-primary/20 rounded-lg px-4 py-2.5">
           <span className="text-muted-foreground">Filtering by specialty:</span>
-          <Badge variant="secondary" className="font-medium">{specialtyFromUrl}</Badge>
-          <Link href="/patient/doctors" className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
+          <Badge variant="secondary" className="font-medium">
+            {specialties.find((s) => s.id === specialtyId)?.name ?? specialtyFromUrl}
+          </Badge>
+          <button
+            onClick={() => setSpecialtyId("")}
+            className="ml-auto flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
             <X className="h-3 w-3" />
             Clear filter
-          </Link>
+          </button>
         </div>
       )}
 
@@ -473,11 +490,16 @@ function DoctorsContent() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input placeholder="Search by name..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} />
         </div>
-        <Input
-          placeholder="Specialty (e.g. Cardiology)"
-          value={specialtyFilter}
-          onChange={(e) => setSpecialtyFilter(e.target.value)}
-        />
+        <select
+          value={specialtyId}
+          onChange={(e) => setSpecialtyId(e.target.value)}
+          className="h-10 border border-input rounded-md px-3 text-sm bg-background focus:outline-none focus:ring-2 focus:ring-ring"
+        >
+          <option value="">All Specialties</option>
+          {specialties.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
         <div className="relative">
           <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input

@@ -5,6 +5,7 @@ import * as doctorController from '../controllers/doctor.controller'
 import * as appointmentController from '../controllers/appointment.controller'
 import * as apiTokenController from '../controllers/apiToken.controller'
 import * as settingsController from '../controllers/settings.controller'
+import * as specialtyController from '../controllers/specialty.controller'
 
 const router: Router = Router()
 
@@ -46,5 +47,11 @@ router.get('/api-logs', dashboardController.getApiLogs)
 router.get('/settings/profile', settingsController.getProfile)
 router.put('/settings/profile', settingsController.updateProfile)
 router.post('/settings/change-password', settingsController.changePassword)
+
+// Specialties
+router.get('/specialties', specialtyController.getSpecialties)
+router.post('/specialties', specialtyController.createSpecialty)
+router.put('/specialties/:id', specialtyController.updateSpecialty)
+router.delete('/specialties/:id', specialtyController.deleteSpecialty)
 
 export default router

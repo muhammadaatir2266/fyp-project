@@ -3,11 +3,12 @@ import { prisma } from '../lib/prisma'
 import { haversineKm } from '../lib/geocode'
 import { findSoonestSlot, buildBookedMap, generateDaySlots } from '../lib/availability'
 import { batchDoctorMetrics } from '../lib/doctorMetrics'
+import { resolveSpecialty } from '../lib/specialty'
 
 export const getDoctors = async (req: Request, res: Response) => {
   try {
     const {
-      specialty, city, name, minRating,
+      specialty, specialtyId, city, name, minRating,
       lat, lng, radiusKm = '25',
       maxFee, gender, language, available48h, sortBy = 'recommended',
       page = '1', limit = '20',
@@ -27,7 +28,19 @@ export const getDoctors = async (req: Request, res: Response) => {
       verificationStatus: 'APPROVED',
     }
 
-    if (specialty) where.specialty = { name: { contains: specialty, mode: 'insensitive' } }
+    // Prefer explicit UUID specialtyId; fall back to resolving by canonical name/alias
+    if (specialtyId) {
+      where.specialtyId = specialtyId
+    } else if (specialty) {
+      const resolved = await resolveSpecialty(specialty)
+      if (resolved) {
+        where.specialtyId = resolved.id
+      } else {
+        // No match → return empty result set rather than unfiltered list
+        return res.json({ doctors: [], total: 0, page: 1, totalPages: 0 })
+      }
+    }
+
     if (city && !nearbyMode) where.city = { contains: city, mode: 'insensitive' }
     if (name) {
       where.OR = [

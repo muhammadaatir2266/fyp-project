@@ -390,7 +390,30 @@ export const getDoctors = async (req: Request, res: Response): Promise<void> => 
     const where: Record<string, unknown> = { isActive: true }
 
     if (specialty) {
-      where.specialty = { name: { contains: specialty, mode: 'insensitive' } }
+      // Resolve to canonical row via name or alias — no substring matching
+      const byName = await prisma.specialty.findFirst({
+        where: { name: { equals: specialty, mode: 'insensitive' } },
+        select: { id: true },
+      })
+
+      let resolvedId = byName?.id
+
+      if (!resolvedId) {
+        const byAlias = await prisma.$queryRaw<{ id: string }[]>`
+          SELECT id FROM "Specialty"
+          WHERE EXISTS (SELECT 1 FROM unnest(aliases) AS a WHERE lower(a) = lower(${specialty}))
+          LIMIT 1
+        `
+        resolvedId = byAlias[0]?.id
+      }
+
+      if (resolvedId) {
+        where.specialtyId = resolvedId
+      } else {
+        // Unknown specialty — return empty rather than all doctors
+        res.json({ success: true, count: 0, doctors: [] })
+        return
+      }
     }
 
     const doctors = await prisma.doctor.findMany({

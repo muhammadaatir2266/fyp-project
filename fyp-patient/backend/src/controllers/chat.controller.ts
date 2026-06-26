@@ -5,6 +5,7 @@ import { AppError } from '../middleware/error.middleware'
 import { z } from 'zod'
 import { parseN8nChatResponse } from '../lib/n8n-response'
 import { parseCoordString, reverseGeocode } from '../lib/geocode'
+import { resolveSpecialty } from '../lib/specialty'
 
 const messageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
@@ -132,16 +133,15 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     // Persist predictions if returned by n8n
     if (normalizedPredictions.length > 0) {
       for (const pred of normalizedPredictions) {
-        // Resolve specialty if provided
+        // Resolve specialty against canonical list (no auto-create)
         let specialtyId: string | undefined
         if (pred.specialty) {
-          let specialty = await prisma.specialty.findFirst({
-            where: { name: { equals: pred.specialty, mode: 'insensitive' } },
-          })
-          if (!specialty) {
-            specialty = await prisma.specialty.create({ data: { name: pred.specialty } })
+          const resolved = await resolveSpecialty(pred.specialty)
+          if (resolved) {
+            specialtyId = resolved.id
+          } else {
+            console.warn(`[chat] Unrecognized specialty from n8n: "${pred.specialty}" — skipping link`)
           }
-          specialtyId = specialty.id
         }
 
         // Find or create the disease; update recommendedSpecialty if we now have one
@@ -346,11 +346,12 @@ export const claimGuestSnapshot = async (req: Request, res: Response, next: Next
     for (const pred of rawPredictions) {
       let specialtyId: string | undefined
       if (pred.specialty) {
-        let sp = await prisma.specialty.findFirst({
-          where: { name: { equals: pred.specialty, mode: 'insensitive' } },
-        })
-        if (!sp) sp = await prisma.specialty.create({ data: { name: pred.specialty } })
-        specialtyId = sp.id
+        const resolved = await resolveSpecialty(pred.specialty)
+        if (resolved) {
+          specialtyId = resolved.id
+        } else {
+          console.warn(`[claim] Unrecognized specialty: "${pred.specialty}" — skipping link`)
+        }
       }
 
       let disease = await prisma.disease.findUnique({ where: { name: pred.disease } })

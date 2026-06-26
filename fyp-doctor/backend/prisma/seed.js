@@ -1,41 +1,31 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { readFileSync } = require('fs');
+const { join } = require('path');
 
 const prisma = new PrismaClient();
 
 async function main() {
   console.log('🌱 Starting seed...');
 
-  // Create Specialties
-  const cardiology = await prisma.specialty.upsert({
-    where: { name: 'Cardiology' },
-    update: {},
-    create: {
-      name: 'Cardiology',
-      description: 'Heart and cardiovascular system',
-      iconName: 'heart'
-    }
-  });
+  // Create Specialties from canonical list
+  const specialtyData = JSON.parse(
+    readFileSync(join(__dirname, '../../fyp-patient/backend/data/specialties.json'), 'utf-8')
+  );
 
-  const neurology = await prisma.specialty.upsert({
-    where: { name: 'Neurology' },
-    update: {},
-    create: {
-      name: 'Neurology',
-      description: 'Brain and nervous system',
-      iconName: 'brain'
-    }
-  });
+  const specialtyMap = {};
+  for (const s of specialtyData) {
+    const sp = await prisma.specialty.upsert({
+      where: { name: s.name },
+      update: { description: s.description, iconName: s.iconName, aliases: s.aliases },
+      create: s,
+    });
+    specialtyMap[s.name] = sp;
+  }
 
-  const generalMedicine = await prisma.specialty.upsert({
-    where: { name: 'General Medicine' },
-    update: {},
-    create: {
-      name: 'General Medicine',
-      description: 'General health and wellness',
-      iconName: 'stethoscope'
-    }
-  });
+  const cardiology = specialtyMap['Cardiology'];
+  const neurology = specialtyMap['Neurology'];
+  const generalMedicine = specialtyMap['General Medicine'];
 
   console.log('✅ Specialties created');
 

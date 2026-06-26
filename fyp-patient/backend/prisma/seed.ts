@@ -1,30 +1,22 @@
 import { PrismaClient, UserRole, DoctorVerificationStatus, Gender } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+import { readFileSync } from 'fs'
+import { join } from 'path'
 
 const prisma = new PrismaClient()
 
 async function main() {
   console.log('🌱 Starting database seeding...')
 
-  // ---- Specialties ----
-  const specialtyData = [
-    { name: 'Cardiology',       description: 'Heart and cardiovascular system specialist', iconName: 'heart' },
-    { name: 'General Medicine', description: 'Primary care and general health issues',      iconName: 'stethoscope' },
-    { name: 'Pediatrics',       description: 'Medical care for infants and children',        iconName: 'baby' },
-    { name: 'Dermatology',      description: 'Skin, hair, and nail conditions',              iconName: 'droplet' },
-    { name: 'Orthopedics',      description: 'Bones, joints, ligaments, and muscles',        iconName: 'bone' },
-    { name: 'Neurology',        description: 'Brain and nervous system disorders',           iconName: 'brain' },
-    { name: 'Psychiatry',       description: 'Mental health and behavioral disorders',       iconName: 'brain' },
-    { name: 'Gastroenterology', description: 'Digestive system disorders',                  iconName: 'activity' },
-    { name: 'Pulmonology',      description: 'Lung and respiratory conditions',              iconName: 'wind' },
-    { name: 'ENT',              description: 'Ear, nose, and throat specialist',             iconName: 'ear' },
-  ]
+  // ---- Specialties (canonical list from data/specialties.json) ----
+  const specialtyData: Array<{ name: string; description: string; iconName: string; aliases: string[] }> =
+    JSON.parse(readFileSync(join(__dirname, '../data/specialties.json'), 'utf-8'))
 
   const specialties: Record<string, { id: string; name: string }> = {}
   for (const s of specialtyData) {
     const sp = await prisma.specialty.upsert({
       where: { name: s.name },
-      update: {},
+      update: { description: s.description, iconName: s.iconName, aliases: s.aliases },
       create: s,
     })
     specialties[s.name] = sp

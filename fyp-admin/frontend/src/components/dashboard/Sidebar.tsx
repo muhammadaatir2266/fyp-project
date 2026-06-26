@@ -13,12 +13,14 @@ import {
   LogOut,
   Book,
   Brain,
+  Stethoscope,
 } from "lucide-react";
 import { removeAuthToken } from "@/lib/auth";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/doctors", label: "Doctors", icon: Users },
+  { href: "/specialties", label: "Specialties", icon: Stethoscope },
   { href: "/appointments", label: "Appointments", icon: Calendar },
   { href: "/api-access", label: "API Access", icon: Key },
   { href: "/api-logs", label: "API Logs", icon: FileText },
