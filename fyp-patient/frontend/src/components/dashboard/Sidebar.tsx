@@ -122,22 +122,21 @@ export function Sidebar({ className }: { className?: string }) {
       </div>
 
       <div className="p-4 mt-auto space-y-4">
-        <Card className="bg-linear-to-br from-primary/5 to-accent/5 border-primary/10 shadow-sm">
+        <Card className="bg-linear-to-br from-primary/10 to-accent/5 border-primary/20 shadow-sm">
           <CardHeader className="p-4 pb-2">
-            <CardTitle className="text-sm">Need Help?</CardTitle>
+            <CardTitle className="text-sm">DocLink Care AI</CardTitle>
             <CardDescription className="text-xs">
-              Talk to our AI assistant for instant support.
+              Describe your symptoms for instant analysis and specialist guidance.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-4 pt-0">
             <Button
               size="sm"
               className="w-full text-xs gap-1.5"
-              variant="outline"
               onClick={openChat}
             >
               <MessageSquare className="h-3.5 w-3.5" />
-              Start Chat
+              Talk to Care AI
             </Button>
           </CardContent>
         </Card>

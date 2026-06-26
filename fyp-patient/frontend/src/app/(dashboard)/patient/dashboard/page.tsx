@@ -121,7 +121,7 @@ export default function DashboardPage() {
                 onClick={openChat}
               >
                 <MessageSquare className="mr-2.5 h-6 w-6" />
-                Start Symptom Check
+                Talk to Care AI
               </Button>
             </div>
           </div>

@@ -111,7 +111,7 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     // Call n8n webhook
     const webhookResponse = await axios.post(WEBHOOK_URL, webhookPayload, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 30000,
+      timeout: 60000,
     })
 
     const n8nData = webhookResponse.data
@@ -234,7 +234,7 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
 
     const webhookResponse = await axios.post(WEBHOOK_URL, webhookPayload, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 30000,
+      timeout: 60000,
     })
 
     const n8nData = webhookResponse.data

@@ -7,6 +7,8 @@ import Link from "next/link";
 import { sendGuestMessage, saveGuestSnapshot, type DoctorRecommendations } from "@/lib/guest-chat";
 import { getGuestLocation } from "@/lib/location";
 import { DoctorRecommendations as DoctorRecommendationsUI } from "@/components/chat/DoctorRecommendations";
+import { ChatMessageContent, splitAssistantMessage } from "@/components/chat/ChatMessageContent";
+import { LoadingText } from "@/components/chat/LoadingText";
 import {
   getOrCreateGuestSessionId,
   isGuestChatCompleted,
@@ -36,13 +38,20 @@ interface Message {
 const cn = (...classes: (string | undefined | false)[]) =>
   classes.filter(Boolean).join(" ");
 
+const SUGGESTION_CHIPS = [
+  "I've had a persistent headache for days",
+  "My child isn't eating well",
+  "I feel chest tightness when walking",
+  "I have a sore throat and mild fever",
+];
+
 export default function GuestChatInterface({ embedded = false }: { embedded?: boolean }) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
       role: "assistant",
       content:
-        "Hello! I'm your AI medical assistant. Describe your symptoms and I'll analyze them and suggest possible conditions. No account needed for your first session.",
+        "Hello! I'm **DocLink Care AI**. Describe how you're feeling and I'll analyze your symptoms and suggest possible conditions. No account needed for your first session.",
       timestamp: new Date(),
     },
   ]);
@@ -90,10 +99,10 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isLoading || isLocked || !guestSessionId) return;
+  const handleSend = async (override?: string) => {
+    const text = (override ?? input).trim();
+    if (!text || isLoading || isLocked || !guestSessionId) return;
 
-    const text = input.trim();
     setInput("");
     setIsLoading(true);
 
@@ -109,17 +118,23 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
 
       const doctorRecs = response.data.doctorRecommendations;
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: (Date.now() + 1).toString(),
+      // Split a long reply into multiple bubbles so it reads like a real chat
+      const segments = splitAssistantMessage(response.data.message || "I received your message.");
+      const base = Date.now() + 1;
+      const aiMessages: Message[] = segments.map((segment, idx) => {
+        const isLast = idx === segments.length - 1;
+        return {
+          id: `${base + idx}`,
           role: "assistant",
-          content: response.data.message || "I received your message.",
+          content: segment,
           timestamp: new Date(),
-          predictions: predictions.length > 0 ? predictions : undefined,
-          doctorRecommendations: doctorRecs,
-        },
-      ]);
+          // Attach prediction/doctor cards to the final bubble only
+          predictions: isLast && predictions.length > 0 ? predictions : undefined,
+          doctorRecommendations: isLast ? doctorRecs : undefined,
+        };
+      });
+
+      setMessages((prev) => [...prev, ...aiMessages]);
 
       if (response.diseaseDetected) {
         markGuestChatCompleted();
@@ -175,7 +190,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
             <Bot className="h-5 w-5 text-primary" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-foreground leading-none">Medical Assistant</h2>
+            <h2 className="text-sm font-semibold text-foreground leading-none">DocLink Care AI</h2>
             <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
@@ -196,60 +211,90 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
       )}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-6">
+        <div className="max-w-3xl mx-auto w-full space-y-6">
         <AnimatePresence initial={false}>
-          {messages.map((msg) => (
+          {messages.map((msg, idx) => {
+            const prev = messages[idx - 1];
+            const next = messages[idx + 1];
+            const showAvatar = !prev || prev.role !== msg.role;
+            const showTimestamp = !next || next.role !== msg.role;
+            return (
             <motion.div
               key={msg.id}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2 }}
-              className={cn("flex w-full", msg.role === "user" ? "justify-end" : "justify-start")}
+              className={cn(
+                "flex w-full",
+                msg.role === "user" ? "justify-end" : "justify-start",
+                !showAvatar && "-mt-4"
+              )}
             >
               <div
                 className={cn(
-                  "flex gap-3 max-w-[88%] md:max-w-[72%]",
+                  "flex gap-3 max-w-[92%] md:max-w-[85%]",
                   msg.role === "user" ? "flex-row-reverse" : "flex-row"
                 )}
               >
-                <div
-                  className={cn(
-                    "h-8 w-8 mt-1 shrink-0 rounded-full flex items-center justify-center border shadow-sm",
-                    msg.role === "assistant"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
-                  )}
-                >
-                  {msg.role === "assistant" ? (
-                    <Bot className="h-4 w-4" />
-                  ) : (
-                    <User className="h-4 w-4" />
-                  )}
-                </div>
-
-                <div className="flex flex-col gap-2 min-w-0">
+                {showAvatar ? (
                   <div
                     className={cn(
-                      "rounded-2xl px-4 py-3 shadow-sm text-sm leading-relaxed",
+                      "h-8 w-8 mt-1 shrink-0 rounded-full flex items-center justify-center border shadow-sm",
+                      msg.role === "assistant"
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground"
+                    )}
+                  >
+                    {msg.role === "assistant" ? (
+                      <Bot className="h-4 w-4" />
+                    ) : (
+                      <User className="h-4 w-4" />
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-8 shrink-0" aria-hidden="true" />
+                )}
+
+                <div className="flex flex-col gap-1.5 min-w-0">
+                  <div
+                    className={cn(
+                      "rounded-2xl px-4 py-3 shadow-sm",
                       msg.role === "user"
-                        ? "bg-primary text-primary-foreground rounded-tr-none"
+                        ? "bg-primary text-primary-foreground rounded-tr-none text-sm leading-relaxed"
                         : "bg-muted/50 border rounded-tl-none"
                     )}
                   >
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
-                    <div
-                      className={cn(
-                        "text-[10px] mt-1 opacity-60 text-right",
-                        msg.role === "user" ? "text-primary-foreground" : "text-muted-foreground"
-                      )}
-                    >
+                    <ChatMessageContent role={msg.role} content={msg.content} />
+                  </div>
+                  {showTimestamp && (
+                    <div className="text-[10px] px-1 opacity-70 text-left text-muted-foreground">
                       {msg.timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
                     </div>
-                  </div>
+                  )}
+
+                  {/* Suggestion chips — shown only on the initial welcome state */}
+                  {msg.role === "assistant" &&
+                    messages.length === 1 &&
+                    msg.id === "1" &&
+                    !isLocked && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {SUGGESTION_CHIPS.map((chip) => (
+                          <button
+                            key={chip}
+                            onClick={() => handleSend(chip)}
+                            disabled={isLoading}
+                            className="text-xs text-left rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-foreground/80 hover:bg-primary/10 hover:border-primary/50 transition-colors disabled:opacity-50"
+                          >
+                            {chip}
+                          </button>
+                        ))}
+                      </div>
+                    )}
 
                   {/* Prediction cards */}
                   {msg.predictions && msg.predictions.length > 0 && (
-                    <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-2">
+                    <div className="mt-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-2">
                       <p className="text-xs font-semibold text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
                         <Stethoscope className="h-3.5 w-3.5" />
                         Possible Conditions
@@ -287,30 +332,37 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
 
                   {/* Recommended doctors from n8n */}
                   {msg.doctorRecommendations && (
-                    <DoctorRecommendationsUI recommendations={msg.doctorRecommendations} />
+                    <div className="mt-3">
+                      <DoctorRecommendationsUI recommendations={msg.doctorRecommendations} />
+                    </div>
                   )}
                 </div>
               </div>
             </motion.div>
-          ))}
+            );
+          })}
         </AnimatePresence>
 
         {isLoading && (
           <div className="flex w-full justify-start">
-            <div className="flex gap-3">
-              <div className="h-8 w-8 mt-1 shrink-0 rounded-full flex items-center justify-center border shadow-sm bg-primary text-primary-foreground">
+            <div className="flex gap-3 items-center">
+              <div className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center border shadow-sm bg-primary text-primary-foreground">
                 <Bot className="h-4 w-4" />
               </div>
-              <div className="bg-muted/50 border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" />
+              <div className="bg-muted/50 border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-primary/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-2 h-2 bg-primary/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-2 h-2 bg-primary/50 rounded-full animate-bounce" />
+                </div>
+                <LoadingText />
               </div>
             </div>
           </div>
         )}
 
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Input area / locked state */}
@@ -369,18 +421,18 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
               </div>
             </motion.div>
           ) : (
-            <div className="relative flex items-end gap-2 bg-muted/30 p-2 rounded-xl border focus-within:ring-1 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all shadow-sm">
+            <div className="relative flex items-end gap-2 bg-muted/30 p-2 rounded-2xl border focus-within:ring-2 focus-within:ring-primary/25 focus-within:border-primary/50 transition-all shadow-sm">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Describe your symptoms…"
+                placeholder="Describe symptoms or ask a follow-up…"
                 rows={1}
-                className="flex-1 min-h-[50px] max-h-[150px] resize-none border-0 bg-transparent focus:outline-none px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground"
+                className="flex-1 min-h-[56px] max-h-[150px] resize-none border-0 bg-transparent focus:outline-none px-3 py-3 text-sm text-foreground placeholder:text-muted-foreground"
                 style={{ overflow: "auto" }}
               />
               <button
-                onClick={handleSend}
+                onClick={() => handleSend()}
                 disabled={!input.trim() || isLoading}
                 className="mb-1 h-9 w-9 shrink-0 rounded-lg bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >

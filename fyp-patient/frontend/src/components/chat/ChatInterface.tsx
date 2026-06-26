@@ -16,7 +16,16 @@ import { cn } from "@/lib/utils";
 import { sendMessage, type DoctorRecommendations } from "@/services/chat.service";
 import { getPatientLocation, formatLocationForWebhook } from "@/lib/location";
 import { DoctorRecommendations as DoctorRecommendationsUI } from "@/components/chat/DoctorRecommendations";
+import { ChatMessageContent, splitAssistantMessage } from "@/components/chat/ChatMessageContent";
+import { LoadingText } from "@/components/chat/LoadingText";
 import Link from "next/link";
+
+const SUGGESTION_CHIPS = [
+  "I've had a persistent headache for days",
+  "My child isn't eating well",
+  "I feel chest tightness when walking",
+  "I have a sore throat and mild fever",
+];
 
 interface PredictionItem {
   disease: string;
@@ -39,7 +48,7 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
       id: "1",
       role: "assistant",
       content:
-        "Hello! I'm your AI medical assistant powered by DocLink. Describe your symptoms and I'll analyze them, suggest possible conditions, and recommend the right specialist for you.",
+        "Hello! I'm **DocLink Care AI**. Describe how you're feeling and I'll analyze your symptoms, suggest possible conditions, and recommend the right specialist for you.",
       timestamp: new Date(),
     },
   ]);
@@ -60,10 +69,10 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
       .catch(() => {});
   }, []);
 
-  const handleSendMessage = async () => {
-    if (!input.trim() || isLoading) return;
+  const handleSendMessage = async (override?: string) => {
+    const currentInput = (override ?? input).trim();
+    if (!currentInput || isLoading) return;
 
-    const currentInput = input.trim();
     setInput("");
     setIsLoading(true);
 
@@ -86,18 +95,30 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
       if (response.success && response.data) {
         if (response.sessionId) setSessionId(response.sessionId);
 
-        const aiMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: "assistant",
-          content:
-            response.data.message ||
-            response.data.response ||
-            "I received your message.",
-          timestamp: new Date(),
-          predictions: normalizePredictions(response.data.prediction),
-          doctorRecommendations: response.data.doctorRecommendations,
-        };
-        setMessages((prev) => [...prev, aiMessage]);
+        const fullContent =
+          response.data.message ||
+          response.data.response ||
+          "I received your message.";
+
+        // Split a long reply into multiple bubbles so it reads like a real chat
+        const segments = splitAssistantMessage(fullContent);
+        const predictions = normalizePredictions(response.data.prediction);
+        const { doctorRecommendations } = response.data;
+        const base = Date.now() + 1;
+
+        const aiMessages: Message[] = segments.map((segment, idx) => {
+          const isLast = idx === segments.length - 1;
+          return {
+            id: `${base + idx}`,
+            role: "assistant",
+            content: segment,
+            timestamp: new Date(),
+            // Attach prediction/doctor cards to the final bubble only
+            predictions: isLast ? predictions : undefined,
+            doctorRecommendations: isLast ? doctorRecommendations : undefined,
+          };
+        });
+        setMessages((prev) => [...prev, ...aiMessages]);
       } else {
         throw new Error("Invalid response format");
       }
@@ -136,7 +157,7 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
           </Avatar>
           <div>
             <h2 className="text-sm font-semibold leading-none">
-              Medical Assistant
+              DocLink Care AI
             </h2>
             <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1.5">
               <span className="relative flex h-2 w-2">
@@ -150,49 +171,62 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
       </div>}
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
-        {messages.map((message) => (
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-6">
+        <div className="max-w-3xl mx-auto w-full space-y-6">
+        {messages.map((message, idx) => {
+          const prev = messages[idx - 1];
+          const next = messages[idx + 1];
+          const showAvatar = !prev || prev.role !== message.role;
+          const showTimestamp = !next || next.role !== message.role;
+          return (
           <div
             key={message.id}
             className={cn(
               "flex w-full",
-              message.role === "user" ? "justify-end" : "justify-start"
+              message.role === "user" ? "justify-end" : "justify-start",
+              !showAvatar && "-mt-4"
             )}
           >
             <div
               className={cn(
-                "flex gap-3 max-w-[88%] md:max-w-[72%]",
+                "flex gap-3 max-w-[92%] md:max-w-[85%]",
                 message.role === "user" ? "flex-row-reverse" : "flex-row"
               )}
             >
-              <Avatar className="h-8 w-8 mt-1 border shadow-sm shrink-0">
-                {message.role === "assistant" ? (
-                  <AvatarFallback className="bg-primary text-primary-foreground">
-                    <Bot className="h-4 w-4" />
-                  </AvatarFallback>
-                ) : (
-                  <AvatarFallback className="bg-muted text-muted-foreground">
-                    <User className="h-4 w-4" />
-                  </AvatarFallback>
-                )}
-              </Avatar>
+              {showAvatar ? (
+                <Avatar className="h-8 w-8 mt-1 border shadow-sm shrink-0">
+                  {message.role === "assistant" ? (
+                    <AvatarFallback className="bg-primary text-primary-foreground">
+                      <Bot className="h-4 w-4" />
+                    </AvatarFallback>
+                  ) : (
+                    <AvatarFallback className="bg-muted text-muted-foreground">
+                      <User className="h-4 w-4" />
+                    </AvatarFallback>
+                  )}
+                </Avatar>
+              ) : (
+                <div className="w-8 shrink-0" aria-hidden="true" />
+              )}
 
-              <div className="flex flex-col gap-2 min-w-0">
+              <div className="flex flex-col gap-1.5 min-w-0">
                 <div
                   className={cn(
-                    "rounded-2xl px-4 py-3 shadow-sm text-sm leading-relaxed",
+                    "rounded-2xl px-4 py-3 shadow-sm",
                     message.role === "user"
-                      ? "bg-primary text-primary-foreground rounded-tr-none"
+                      ? "bg-primary text-primary-foreground rounded-tr-none text-sm leading-relaxed"
                       : "bg-muted/50 border rounded-tl-none"
                   )}
                 >
-                  <div className="whitespace-pre-wrap">{message.content}</div>
+                  <ChatMessageContent role={message.role} content={message.content} />
+                </div>
+                {showTimestamp && (
                   <div
                     className={cn(
-                      "text-[10px] mt-1 opacity-70 text-right",
+                      "text-[10px] px-1 opacity-70",
                       message.role === "user"
-                        ? "text-primary-foreground/70"
-                        : "text-muted-foreground"
+                        ? "text-right text-muted-foreground"
+                        : "text-left text-muted-foreground"
                     )}
                   >
                     {message.timestamp.toLocaleTimeString([], {
@@ -200,11 +234,29 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
                       minute: "2-digit",
                     })}
                   </div>
-                </div>
+                )}
+
+                {/* Suggestion chips — shown only on the initial welcome state */}
+                {message.role === "assistant" &&
+                  messages.length === 1 &&
+                  message.id === "1" && (
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {SUGGESTION_CHIPS.map((chip) => (
+                        <button
+                          key={chip}
+                          onClick={() => handleSendMessage(chip)}
+                          disabled={isLoading}
+                          className="text-xs text-left rounded-full border border-primary/30 bg-primary/5 px-3 py-1.5 text-foreground/80 hover:bg-primary/10 hover:border-primary/50 transition-colors disabled:opacity-50"
+                        >
+                          {chip}
+                        </button>
+                      ))}
+                    </div>
+                  )}
 
                 {/* Prediction cards */}
                 {message.predictions && message.predictions.length > 0 && (
-                  <div className="bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-2">
+                  <div className="mt-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl p-3 space-y-2">
                     <p className="text-xs font-semibold text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
                       <Stethoscope className="h-3.5 w-3.5" />
                       Possible Conditions
@@ -265,45 +317,52 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
 
                 {/* Recommended doctors from n8n */}
                 {message.doctorRecommendations && (
-                  <DoctorRecommendationsUI recommendations={message.doctorRecommendations} />
+                  <div className="mt-3">
+                    <DoctorRecommendationsUI recommendations={message.doctorRecommendations} />
+                  </div>
                 )}
               </div>
             </div>
           </div>
-        ))}
+          );
+        })}
 
         {isLoading && (
           <div className="flex w-full justify-start">
-            <div className="flex gap-3">
-              <Avatar className="h-8 w-8 mt-1 border shadow-sm shrink-0">
+            <div className="flex gap-3 items-center">
+              <Avatar className="h-8 w-8 border shadow-sm shrink-0">
                 <AvatarFallback className="bg-primary text-primary-foreground">
                   <Bot className="h-4 w-4" />
                 </AvatarFallback>
               </Avatar>
-              <div className="bg-muted/50 border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-1">
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce" />
+              <div className="bg-muted/50 border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-2">
+                <div className="flex items-center gap-1">
+                  <span className="w-2 h-2 bg-primary/50 rounded-full animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-2 h-2 bg-primary/50 rounded-full animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-2 h-2 bg-primary/50 rounded-full animate-bounce" />
+                </div>
+                <LoadingText />
               </div>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
+        </div>
       </div>
 
       {/* Input */}
       <div className="p-4 bg-background border-t sticky bottom-0 z-10">
-        <div className="max-w-4xl mx-auto">
-          <div className="relative flex items-end gap-2 bg-muted/30 p-2 rounded-xl border focus-within:ring-1 focus-within:ring-primary/20 focus-within:border-primary/50 transition-all shadow-sm">
+        <div className="max-w-3xl mx-auto">
+          <div className="relative flex items-end gap-2 bg-muted/30 p-2 rounded-2xl border focus-within:ring-2 focus-within:ring-primary/25 focus-within:border-primary/50 transition-all shadow-sm">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Describe your symptoms..."
-              className="min-h-[50px] max-h-[150px] resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-3 py-3"
+              placeholder="Describe symptoms or ask a follow-up…"
+              className="min-h-[56px] max-h-[150px] resize-none border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 px-3 py-3"
             />
             <Button
-              onClick={handleSendMessage}
+              onClick={() => handleSendMessage()}
               disabled={!input.trim() || isLoading}
               size="icon"
               className="mb-1 h-9 w-9 shrink-0 rounded-lg transition-all hover:scale-105 active:scale-95"
