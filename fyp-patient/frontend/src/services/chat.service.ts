@@ -48,6 +48,34 @@ export interface ChatResponse {
   }
 }
 
+export interface ChatSessionMessage {
+  id: string
+  role: string
+  content: string
+  createdAt: string
+}
+
+export interface SessionPrediction {
+  confidence: number
+  disease: {
+    name: string
+    recommendedSpecialty: { name: string } | null
+  }
+}
+
+export interface ChatSession {
+  id: string
+  startedAt: string
+  messages: ChatSessionMessage[]
+  predictions: SessionPrediction[]
+}
+
+export const getLatestChatSession = async (): Promise<ChatSession | null> => {
+  const response = await api.get('/chat/sessions')
+  const sessions: ChatSession[] = response.data
+  return sessions.length > 0 ? sessions[0] : null
+}
+
 export const sendMessage = async (
   message: string,
   location?: string,

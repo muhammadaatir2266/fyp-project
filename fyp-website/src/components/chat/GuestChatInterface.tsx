@@ -16,6 +16,8 @@ import {
   saveGuestContext,
   getGuestContext,
   buildGuestAuthHref,
+  saveGuestMessages,
+  loadGuestMessages,
   type GuestPrediction,
   type GuestDoctorRecommendations,
 } from "@/lib/guest-session";
@@ -72,31 +74,44 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
       .then((loc) => { locationRef.current = loc; })
       .catch(() => {});
 
-    // If chat was already completed in a previous session, restore locked state
+    // Restore full message history if available
+    const savedMessages = loadGuestMessages();
+    if (savedMessages && savedMessages.length > 0) {
+      setMessages(
+        savedMessages.map((m) => ({
+          ...m,
+          timestamp: new Date(m.timestamp),
+        }))
+      );
+    }
+
+    // Restore locked state if chat was already completed
     if (isGuestChatCompleted()) {
       const ctx = getGuestContext();
       if (ctx) {
         setIsLocked(true);
         setTopSpecialty(ctx.specialty);
-        // Show the previous predictions in-thread
-        if (ctx.predictions && ctx.predictions.length > 0) {
-          setMessages([
-            {
-              id: "restored",
-              role: "assistant",
-              content: "Welcome back! Here are your symptom analysis results from your last session.",
-              timestamp: new Date(ctx.detectedAt),
-              predictions: ctx.predictions,
-              doctorRecommendations: ctx.doctorRecommendations as DoctorRecommendations | undefined,
-            },
-          ]);
-        }
       }
     }
   }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Persist messages to localStorage on every change so they survive a refresh
+  useEffect(() => {
+    // Don't persist the single default welcome message — it's always regenerated
+    if (messages.length <= 1 && messages[0]?.id === "1") return;
+    saveGuestMessages(
+      messages.map((m) => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp.toISOString(),
+        predictions: m.predictions,
+      }))
+    );
   }, [messages]);
 
   const handleSend = async (override?: string) => {

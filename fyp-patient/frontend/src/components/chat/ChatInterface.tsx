@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { sendMessage, type DoctorRecommendations } from "@/services/chat.service";
+import { sendMessage, getLatestChatSession, type DoctorRecommendations } from "@/services/chat.service";
 import { getPatientLocation, formatLocationForWebhook } from "@/lib/location";
 import { DoctorRecommendations as DoctorRecommendationsUI } from "@/components/chat/DoctorRecommendations";
 import { ChatMessageContent, splitAssistantMessage } from "@/components/chat/ChatMessageContent";
@@ -55,6 +55,7 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
   ]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [restoring, setRestoring] = useState(true);
   const [sessionId, setSessionId] = useState<string | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const locationRef = useRef<string | undefined>(undefined);
@@ -62,6 +63,42 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Restore the most recent session on every mount (modal open)
+  useEffect(() => {
+    getLatestChatSession()
+      .then((session) => {
+        if (!session || session.messages.length === 0) return;
+
+        setSessionId(session.id);
+
+        const predictions: PredictionItem[] = session.predictions.map((p) => ({
+          disease: p.disease.name,
+          confidence: p.confidence,
+          specialty: p.disease.recommendedSpecialty?.name,
+        }));
+
+        // Find the index of the last assistant message to attach predictions there
+        const lastAssistantIdx = session.messages
+          .map((m, i) => (m.role === "assistant" ? i : -1))
+          .filter((i) => i !== -1)
+          .at(-1) ?? -1;
+
+        const restored: Message[] = session.messages.map((m, idx) => ({
+          id: m.id,
+          role: m.role as "user" | "assistant",
+          content: m.content,
+          timestamp: new Date(m.createdAt),
+          predictions: idx === lastAssistantIdx && predictions.length > 0 ? predictions : undefined,
+        }));
+
+        setMessages(restored);
+      })
+      .catch(() => {
+        // Silently fall back to the welcome message if history can't be loaded
+      })
+      .finally(() => setRestoring(false));
+  }, []);
 
   useEffect(() => {
     // Prefetch location once on mount so it's ready when the first message is sent
@@ -180,6 +217,16 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
 
       {/* Messages */}
       <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
+        {restoring ? (
+          <div className="max-w-3xl mx-auto w-full flex flex-col gap-3 pt-2">
+            {[80, 55, 70].map((w) => (
+              <div key={w} className="flex gap-3">
+                <div className="h-8 w-8 rounded-full bg-muted animate-pulse shrink-0" />
+                <div className={`h-10 rounded-2xl bg-muted animate-pulse`} style={{ width: `${w}%` }} />
+              </div>
+            ))}
+          </div>
+        ) : (
         <div className="max-w-3xl mx-auto w-full flex flex-col gap-3">
         <AnimatePresence initial={false}>
         {messages.map((message, idx) => {
@@ -251,7 +298,8 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
                 {/* Suggestion chips — shown only on the initial welcome state */}
                 {message.role === "assistant" &&
                   messages.length === 1 &&
-                  message.id === "1" && (
+                  message.id === "1" &&
+                  !restoring && (
                     <div className="flex flex-wrap gap-2 mt-2">
                       {SUGGESTION_CHIPS.map((chip) => (
                         <button
@@ -361,6 +409,7 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
         )}
         <div ref={messagesEndRef} />
         </div>
+        )}
       </div>
 
 

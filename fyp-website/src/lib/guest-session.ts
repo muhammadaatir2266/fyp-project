@@ -74,6 +74,38 @@ export function clearGuestContext(): void {
   localStorage.removeItem(GUEST_CONTEXT_KEY);
   localStorage.removeItem(GUEST_COMPLETED_KEY);
   localStorage.removeItem(GUEST_SESSION_KEY);
+  localStorage.removeItem(GUEST_MESSAGES_KEY);
+}
+
+// --- Guest message persistence ---
+
+const GUEST_MESSAGES_KEY = "doclink_guest_messages";
+
+export interface PersistedMessage {
+  id: string;
+  role: "user" | "assistant";
+  content: string;
+  timestamp: string; // ISO string — Date serialized
+  predictions?: Array<{ disease: string; confidence: number; specialty?: string }>;
+}
+
+export function saveGuestMessages(messages: PersistedMessage[]): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(GUEST_MESSAGES_KEY, JSON.stringify(messages));
+  } catch {
+    // Ignore storage errors (quota exceeded, etc.)
+  }
+}
+
+export function loadGuestMessages(): PersistedMessage[] | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(GUEST_MESSAGES_KEY);
+    return raw ? (JSON.parse(raw) as PersistedMessage[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
