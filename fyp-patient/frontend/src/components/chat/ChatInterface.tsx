@@ -8,7 +8,6 @@ import {
   Bot,
   Loader2,
   Stethoscope,
-  Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,7 +18,6 @@ import { getPatientLocation, formatLocationForWebhook } from "@/lib/location";
 import { DoctorRecommendations as DoctorRecommendationsUI } from "@/components/chat/DoctorRecommendations";
 import { ChatMessageContent, splitAssistantMessage } from "@/components/chat/ChatMessageContent";
 import { LoadingText } from "@/components/chat/LoadingText";
-import Link from "next/link";
 
 const SUGGESTION_CHIPS = [
   "I've had a persistent headache for days",
@@ -354,24 +352,6 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
                       For informational purposes only. Please consult a qualified doctor.
                     </p>
 
-                    {/* Find a Specialist CTA */}
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="w-full mt-1 h-8 text-xs gap-1.5 border-amber-300 dark:border-amber-700 text-amber-800 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-                      asChild
-                    >
-                      <Link
-                        href={
-                          message.predictions[0]?.specialty
-                            ? `/patient/doctors?specialty=${encodeURIComponent(message.predictions[0].specialty)}&nearby=1`
-                            : "/patient/doctors?nearby=1"
-                        }
-                      >
-                        <Search className="h-3.5 w-3.5" />
-                        Find a Specialist
-                      </Link>
-                    </Button>
                   </div>
                 )}
 

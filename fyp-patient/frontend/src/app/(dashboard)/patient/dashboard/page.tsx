@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -56,12 +57,22 @@ export default function DashboardPage() {
   const [recentHistory, setRecentHistory] = useState<ChatSession[]>([]);
   const [loadingUser, setLoadingUser] = useState(true);
   const { openChat } = useChatWidget();
+  const searchParams = useSearchParams();
+  const autoOpenedRef = useRef(false);
 
   const currentDate = new Date().toLocaleDateString("en-US", {
     weekday: "long",
     month: "long",
     day: "numeric",
   });
+
+  // Auto-open chat when redirected from guest signup
+  useEffect(() => {
+    if (!autoOpenedRef.current && searchParams.get("chat") === "open") {
+      autoOpenedRef.current = true;
+      openChat();
+    }
+  }, [searchParams, openChat]);
 
   useEffect(() => {
     fetchCurrentUser()
