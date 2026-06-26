@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { Send, Bot, User, Loader2, Stethoscope, LogIn, UserPlus, Lock, ArrowRight, CalendarCheck } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
-import { sendGuestMessage, saveGuestSnapshot, type DoctorRecommendations } from "@/lib/guest-chat";
+import { sendGuestMessage, saveGuestSnapshot, type DoctorRecommendations, type InternalDoctorItem } from "@/lib/guest-chat";
 import { getGuestLocation } from "@/lib/location";
 import { DoctorRecommendations as DoctorRecommendationsUI } from "@/components/chat/DoctorRecommendations";
 import { ChatMessageContent, splitAssistantMessage } from "@/components/chat/ChatMessageContent";
@@ -156,9 +156,16 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
         }
       }
 
-      if (response.diseaseDetected) {
+      if (doctorRecs && doctorRecs.doctors.length > 0) {
         markGuestChatCompleted();
-        const topSpec = predictions[0]?.specialty;
+        // Prefer the predicted specialty; for elective/no-disease requests fall
+        // back to the first in-network doctor's specialty so the snapshot still
+        // captures something useful.
+        const topSpec =
+          predictions[0]?.specialty ??
+          (doctorRecs.source === "internal_db"
+            ? (doctorRecs.doctors[0] as InternalDoctorItem | undefined)?.specialty
+            : undefined);
         setTopSpecialty(topSpec);
         setIsLocked(true);
 
