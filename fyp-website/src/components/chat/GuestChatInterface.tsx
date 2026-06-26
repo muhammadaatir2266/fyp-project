@@ -172,9 +172,19 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
         };
         saveGuestContext(ctx);
 
-        saveGuestSnapshot(guestSessionId, predictions as GuestPrediction[], response.data.symptoms, topSpec).catch(
-          () => {}
-        );
+        // Capture the full conversation (use the latest messages ref so we get
+        // everything including the just-dripped AI bubbles)
+        setMessages((prev) => {
+          const thread = prev.map((m) => ({ id: m.id, role: m.role, content: m.content }));
+          saveGuestSnapshot(
+            guestSessionId,
+            predictions as GuestPrediction[],
+            response.data.symptoms,
+            topSpec,
+            thread,
+          ).catch(() => {});
+          return prev; // no state change — side-effect only
+        });
       }
     } catch (err: unknown) {
       setMessages((prev) => [

@@ -401,6 +401,7 @@ model GuestChatSnapshot {
   predictions    Json
   symptoms       Json?
   specialty      String?
+  messages       Json?
   expiresAt      DateTime
   createdAt      DateTime @default(now())
 

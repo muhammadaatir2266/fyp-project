@@ -65,11 +65,12 @@ export async function saveGuestSnapshot(
   guestSessionId: string,
   predictions: Array<{ disease: string; confidence: number; specialty?: string }>,
   symptoms?: string[],
-  specialty?: string
+  specialty?: string,
+  messages?: Array<{ id: string; role: "user" | "assistant"; content: string }>
 ): Promise<void> {
   await fetch(`${AUTH_API_URL}/chat/guest/snapshot`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ guestSessionId, predictions, symptoms, specialty }),
+    body: JSON.stringify({ guestSessionId, predictions, symptoms, specialty, messages }),
   });
 }

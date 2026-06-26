@@ -6,11 +6,13 @@ import { AnimatePresence, motion } from "framer-motion";
 // Warm, caring status messages — kept gentle and reassuring so they comfort
 // the user during a long wait without exposing what's happening.
 const PHASES = [
-  { after: 0, text: "Care AI is here for you…" },
-  { after: 3000, text: "Taking a moment to understand you…" },
-  { after: 9000, text: "Thinking this through with care…" },
-  { after: 16000, text: "Almost ready, thank you for waiting…" },
-  { after: 26000, text: "Your patience means a lot, hang in there…" },
+  { after: 0,       text: "Care AI is here for you…" },
+  { after: 5000,    text: "Taking a moment to understand you…" },
+  { after: 15000,   text: "Thinking this through with care…" },
+  { after: 30000,   text: "Almost ready, thank you for waiting…" },
+  { after: 55000,   text: "Your patience means a lot, hang in there…" },
+  { after: 85000,   text: "Still with you, just a little longer…" },
+  { after: 110000,  text: "Nearly there, thank you for your patience…" },
 ];
 
 export function LoadingText() {

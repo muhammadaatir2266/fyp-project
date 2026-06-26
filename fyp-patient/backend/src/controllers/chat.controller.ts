@@ -111,7 +111,7 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     // Call n8n webhook
     const webhookResponse = await axios.post(WEBHOOK_URL, webhookPayload, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 60000,
+      timeout: 120000,
     })
 
     const n8nData = webhookResponse.data
@@ -234,7 +234,7 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
 
     const webhookResponse = await axios.post(WEBHOOK_URL, webhookPayload, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 60000,
+      timeout: 120000,
     })
 
     const n8nData = webhookResponse.data
@@ -274,23 +274,30 @@ const snapshotSchema = z.object({
   ),
   symptoms: z.array(z.string()).optional(),
   specialty: z.string().optional(),
+  messages: z.array(
+    z.object({
+      id: z.string(),
+      role: z.enum(['user', 'assistant']),
+      content: z.string(),
+    })
+  ).optional(),
 })
 
 const claimSchema = z.object({
   guestSessionId: z.string().uuid(),
 })
 
-// Public — stores guest predictions for later claim (TTL 24 h)
+// Public — stores guest predictions + conversation for later claim (TTL 24 h)
 export const saveGuestSnapshot = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { guestSessionId, predictions, symptoms, specialty } = snapshotSchema.parse(req.body)
+    const { guestSessionId, predictions, symptoms, specialty, messages } = snapshotSchema.parse(req.body)
 
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000) // 24 h
 
     await prisma.guestChatSnapshot.upsert({
       where: { guestSessionId },
-      create: { guestSessionId, predictions, symptoms: symptoms ?? [], specialty, expiresAt },
-      update: { predictions, symptoms: symptoms ?? [], specialty, expiresAt },
+      create: { guestSessionId, predictions, symptoms: symptoms ?? [], specialty, messages: messages ?? [], expiresAt },
+      update: { predictions, symptoms: symptoms ?? [], specialty, messages: messages ?? [], expiresAt },
     })
 
     res.json({ success: true })
@@ -319,7 +326,12 @@ export const claimGuestSnapshot = async (req: Request, res: Response, next: Next
     })
     if (!patient) throw new AppError('Patient not found', 404)
 
-    // Create a chat session to house the predictions
+    // Restore the real guest conversation if it was saved with the snapshot,
+    // otherwise fall back to a single synthetic summary message.
+    const savedMessages = Array.isArray(snapshot.messages) && (snapshot.messages as unknown[]).length > 0
+      ? (snapshot.messages as Array<{ id: string; role: string; content: string }>)
+      : null
+
     const session = await prisma.chatSession.create({
       data: {
         patientId: patient.id,
@@ -327,12 +339,14 @@ export const claimGuestSnapshot = async (req: Request, res: Response, next: Next
         // chat thread started as a guest continues seamlessly after signup.
         memoryKey: guestSessionId,
         messages: {
-          create: {
-            role: 'assistant',
-            content: `Based on your earlier symptom analysis, possible conditions were identified. ${
-              snapshot.specialty ? `A ${snapshot.specialty} was recommended.` : ''
-            }`,
-          },
+          create: savedMessages
+            ? savedMessages.map((m) => ({ role: m.role, content: m.content }))
+            : [{
+                role: 'assistant',
+                content: `Based on your earlier symptom analysis, possible conditions were identified. ${
+                  snapshot.specialty ? `A ${snapshot.specialty} was recommended.` : ''
+                }`,
+              }],
         },
       },
     })
