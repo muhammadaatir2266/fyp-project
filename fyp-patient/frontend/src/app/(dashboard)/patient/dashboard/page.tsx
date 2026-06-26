@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   Card,
@@ -51,28 +51,33 @@ interface ChatSession {
   messages: Array<{ content: string }>;
 }
 
-export default function DashboardPage() {
-  const [user, setUser] = useState<User | null>(null);
-  const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
-  const [recentHistory, setRecentHistory] = useState<ChatSession[]>([]);
-  const [loadingUser, setLoadingUser] = useState(true);
-  const { openChat } = useChatWidget();
+function AutoOpenChat() {
   const searchParams = useSearchParams();
+  const { openChat } = useChatWidget();
   const autoOpenedRef = useRef(false);
 
-  const currentDate = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    month: "long",
-    day: "numeric",
-  });
-
-  // Auto-open chat when redirected from guest signup
   useEffect(() => {
     if (!autoOpenedRef.current && searchParams.get("chat") === "open") {
       autoOpenedRef.current = true;
       openChat();
     }
   }, [searchParams, openChat]);
+
+  return null;
+}
+
+export default function DashboardPage() {
+  const [user, setUser] = useState<User | null>(null);
+  const [nextAppointment, setNextAppointment] = useState<Appointment | null>(null);
+  const [recentHistory, setRecentHistory] = useState<ChatSession[]>([]);
+  const [loadingUser, setLoadingUser] = useState(true);
+  const { openChat } = useChatWidget();
+
+  const currentDate = new Date().toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
 
   useEffect(() => {
     fetchCurrentUser()
@@ -97,6 +102,9 @@ export default function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-8 pb-8 max-w-5xl mx-auto w-full">
+      <Suspense fallback={null}>
+        <AutoOpenChat />
+      </Suspense>
       {/* Welcome */}
       <div className="flex flex-col gap-2 py-4">
         {loadingUser ? (
