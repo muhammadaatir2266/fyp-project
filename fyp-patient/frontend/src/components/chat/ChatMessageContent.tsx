@@ -67,26 +67,26 @@ export function ChatMessageContent({ role, content, className }: ChatMessageCont
   }
 
   return (
-    <div className={cn("text-[15px] leading-relaxed [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}>
+    <div className={cn("text-[14px] leading-snug [&>*:first-child]:mt-0 [&>*:last-child]:mb-0", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          p: ({ children }) => <p className="mb-3 leading-relaxed">{children}</p>,
+          p: ({ children }) => <p className="mb-2 leading-snug">{children}</p>,
           strong: ({ children }) => (
             <strong className="font-semibold text-foreground">{children}</strong>
           ),
           em: ({ children }) => <em className="italic">{children}</em>,
           ul: ({ children }) => (
-            <ul className="my-3 ml-4 list-disc space-y-1.5 marker:text-muted-foreground">
+            <ul className="my-2 ml-4 list-disc space-y-0.5 marker:text-muted-foreground">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="my-3 ml-4 list-decimal space-y-1.5 marker:text-muted-foreground">
+            <ol className="my-2 ml-4 list-decimal space-y-0.5 marker:text-muted-foreground">
               {children}
             </ol>
           ),
-          li: ({ children }) => <li className="leading-relaxed pl-1">{children}</li>,
+          li: ({ children }) => <li className="leading-snug pl-0.5">{children}</li>,
           hr: () => <hr className="my-4 border-border/60" />,
           h1: ({ children }) => <h3 className="font-semibold text-base mt-4 mb-2">{children}</h3>,
           h2: ({ children }) => <h3 className="font-semibold text-base mt-4 mb-2">{children}</h3>,

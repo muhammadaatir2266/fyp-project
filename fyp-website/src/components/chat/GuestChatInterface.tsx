@@ -128,13 +128,18 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
           role: "assistant",
           content: segment,
           timestamp: new Date(),
-          // Attach prediction/doctor cards to the final bubble only
           predictions: isLast && predictions.length > 0 ? predictions : undefined,
           doctorRecommendations: isLast ? doctorRecs : undefined,
         };
       });
 
-      setMessages((prev) => [...prev, ...aiMessages]);
+      // Drip messages in one-by-one with a typing pause between each bubble
+      for (let i = 0; i < aiMessages.length; i++) {
+        setMessages((prev) => [...prev, aiMessages[i]]);
+        if (i < aiMessages.length - 1) {
+          await new Promise((r) => setTimeout(r, 650));
+        }
+      }
 
       if (response.diseaseDetected) {
         markGuestChatCompleted();
@@ -211,8 +216,8 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
       )}
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-6">
-        <div className="max-w-3xl mx-auto w-full space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
+        <div className="max-w-3xl mx-auto w-full flex flex-col gap-3">
         <AnimatePresence initial={false}>
           {messages.map((msg, idx) => {
             const prev = messages[idx - 1];
@@ -228,7 +233,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
               className={cn(
                 "flex w-full",
                 msg.role === "user" ? "justify-end" : "justify-start",
-                !showAvatar && "-mt-4"
+                !showAvatar && "-mt-2"
               )}
             >
               <div

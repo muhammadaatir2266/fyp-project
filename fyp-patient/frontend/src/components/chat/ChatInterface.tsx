@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Send,
   User,
@@ -113,12 +114,19 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
             role: "assistant",
             content: segment,
             timestamp: new Date(),
-            // Attach prediction/doctor cards to the final bubble only
             predictions: isLast ? predictions : undefined,
             doctorRecommendations: isLast ? doctorRecommendations : undefined,
           };
         });
-        setMessages((prev) => [...prev, ...aiMessages]);
+
+        // Drip messages in one-by-one with a typing pause between each bubble
+        for (let i = 0; i < aiMessages.length; i++) {
+          setMessages((prev) => [...prev, aiMessages[i]]);
+          if (i < aiMessages.length - 1) {
+            // Keep typing indicator visible between bubbles
+            await new Promise((r) => setTimeout(r, 650));
+          }
+        }
       } else {
         throw new Error("Invalid response format");
       }
@@ -171,20 +179,24 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
       </div>}
 
       {/* Messages */}
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6 space-y-6">
-        <div className="max-w-3xl mx-auto w-full space-y-6">
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 md:p-6">
+        <div className="max-w-3xl mx-auto w-full flex flex-col gap-3">
+        <AnimatePresence initial={false}>
         {messages.map((message, idx) => {
           const prev = messages[idx - 1];
           const next = messages[idx + 1];
           const showAvatar = !prev || prev.role !== message.role;
           const showTimestamp = !next || next.role !== message.role;
           return (
-          <div
+          <motion.div
             key={message.id}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
             className={cn(
               "flex w-full",
               message.role === "user" ? "justify-end" : "justify-start",
-              !showAvatar && "-mt-4"
+              !showAvatar && "-mt-2"
             )}
           >
             <div
@@ -323,9 +335,10 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
           );
         })}
+        </AnimatePresence>
 
         {isLoading && (
           <div className="flex w-full justify-start">
@@ -349,6 +362,7 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
         <div ref={messagesEndRef} />
         </div>
       </div>
+
 
       {/* Input */}
       <div className="p-4 bg-background border-t sticky bottom-0 z-10">
