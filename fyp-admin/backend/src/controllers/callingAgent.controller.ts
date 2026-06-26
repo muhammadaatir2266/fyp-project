@@ -385,9 +385,9 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
 
 export const getDoctors = async (req: Request, res: Response): Promise<void> => {
   try {
-    const { specialty } = req.query as { specialty?: string }
+    const { specialty, city } = req.query as { specialty?: string; city?: string }
 
-    const where: Record<string, unknown> = { isActive: true }
+    const where: Record<string, unknown> = { isActive: true, verificationStatus: 'APPROVED' }
 
     if (specialty) {
       // Resolve to canonical row via name or alias — no substring matching
@@ -414,6 +414,10 @@ export const getDoctors = async (req: Request, res: Response): Promise<void> => 
         res.json({ success: true, count: 0, doctors: [] })
         return
       }
+    }
+
+    if (city) {
+      where.city = { contains: city, mode: 'insensitive' }
     }
 
     const doctors = await prisma.doctor.findMany({
@@ -446,5 +450,53 @@ export const getDoctors = async (req: Request, res: Response): Promise<void> => 
   } catch (error) {
     console.error('Get doctors error:', error)
     res.status(500).json({ success: false, message: 'Server error while fetching doctors' })
+  }
+}
+
+export const getSpecialtiesForAgent = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const specialties = await prisma.specialty.findMany({
+      select: { id: true, name: true, description: true, aliases: true },
+      orderBy: { name: 'asc' },
+    })
+
+    res.json({
+      success: true,
+      count: specialties.length,
+      specialties: specialties.map((s) => ({
+        id: s.id,
+        name: s.name,
+        description: s.description,
+        aliases: s.aliases,
+      })),
+      // Flat name list for easy LLM prompt injection
+      names: specialties.map((s) => s.name),
+    })
+  } catch (error) {
+    console.error('Get specialties error:', error)
+    res.status(500).json({ success: false, message: 'Server error while fetching specialties' })
+  }
+}
+
+export const getCitiesForAgent = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // Distinct cities from active, approved doctors only
+    const rows = await prisma.doctor.findMany({
+      where: { isActive: true, verificationStatus: 'APPROVED' },
+      select: { city: true },
+      distinct: ['city'],
+      orderBy: { city: 'asc' },
+    })
+
+    const cities = rows.map((r) => r.city).filter(Boolean)
+
+    res.json({
+      success: true,
+      count: cities.length,
+      cities,
+    })
+  } catch (error) {
+    console.error('Get cities error:', error)
+    res.status(500).json({ success: false, message: 'Server error while fetching cities' })
   }
 }

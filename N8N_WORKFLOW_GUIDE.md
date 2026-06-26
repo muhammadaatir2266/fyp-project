@@ -42,10 +42,10 @@ Referenced in patient backend `env.example` as `N8N_CHAT_WEBHOOK_URL`.
 ### n8n workflow nodes:
 
 1. **Webhook Trigger** — receives POST from patient backend
-2. **Load Specialties (HTTP — run once at workflow start or cache in static data)**  
-   `GET http://localhost:5000/api/auth/specialties`  
-   Returns `{ "specialties": [{ "id": "...", "name": "Cardiology" }, ...] }`  
-   Extract the names into a comma-separated list for injection into the LLM prompt.
+2. **Load Reference Data (HTTP — run once at workflow start or cache in static data)**  
+   - Specialties: `GET http://localhost:4000/api/v1/specialties` (admin API, requires API token) — use the `names[]` array for LLM prompt injection  
+   - Cities: `GET http://localhost:4000/api/v1/cities` — inject into LLM prompt so it picks an exact city  
+   - Alternatively use the public patient API (no token): `GET http://localhost:5000/api/auth/specialties`
 3. **OpenAI Chat** — Include the allowed specialty list in the system prompt so the LLM always picks an exact name:  
    > _"You are a medical assistant. Analyze the patient's symptoms conversationally. When you have enough information, identify 1-3 possible conditions with confidence and recommend a specialist. You MUST choose the specialty from this exact list: Cardiology, General Medicine, Pediatrics, Dermatology, Orthopedics, Neurology, Psychiatry, Gastroenterology, Pulmonology, ENT, Urology, Ophthalmology, Obstetrics & Gynecology, Endocrinology, Nephrology, Oncology, Rheumatology, Hematology, Infectious Disease, General Surgery. Do not invent specialty names."_  
    Pass: `{{ $json.message }}` + conversation history
@@ -53,10 +53,10 @@ Referenced in patient backend `env.example` as `N8N_CHAT_WEBHOOK_URL`.
 5. **ML Predict (HTTP)** — `POST http://localhost:8000/predict` (or admin API `/api/v1/ml/predict`)  
    Body: `{ "symptoms": ["headache", "fever"] }`  
    Response: `{ "predictions": [{ "disease": "Influenza", "confidence": 0.85 }] }`
-6. **Find Doctors (HTTP)** — Use the canonical specialty name from step 3:  
-   `GET http://localhost:5000/api/doctors?specialty=<exact_name>&city=<location>`  
-   The `specialty` parameter is matched case-insensitively against canonical names and aliases — partial/substring matches are no longer accepted. If the specialty name is unknown, the API returns an empty list.  
-   Alternatively pass the specialty UUID directly: `?specialtyId=<uuid>` (preferred when you have the ID from step 2).
+6. **Find Doctors (HTTP)** — Use the canonical specialty name from step 3 and city from the patient's location:  
+   - Admin API (recommended for n8n/AI agents): `GET http://localhost:4000/api/v1/doctors?specialty=<exact_name>&city=<city>`  
+   - Patient API: `GET http://localhost:5000/api/doctors?specialty=<exact_name>&city=<city>`  
+   Both accept `?specialty=<canonical_name>` (resolved via aliases — must be exact, no substrings) and `?city=<name>` (case-insensitive substring). Use the city names from `GET /api/v1/cities` for best results.
 7. **Respond** — Return structured JSON:
 ```json
 {
@@ -164,9 +164,62 @@ Configure these **custom functions** in the Retell agent, authenticated with `Au
 
 | Function | Method | URL |
 |----------|--------|-----|
+| `get_specialties` | GET | `https://<admin-backend>/api/v1/specialties` |
+| `get_cities` | GET | `https://<admin-backend>/api/v1/cities` |
+| `find_doctors` | GET | `https://<admin-backend>/api/v1/doctors?specialty={specialty}&city={city}` |
 | `get_available_slots` | GET | `https://<admin-backend>/api/v1/doctors/{{doctor_id}}/slots?date={date}` |
 | `check_availability` | GET | `https://<admin-backend>/api/v1/doctors/{{doctor_id}}/availability?date={date}&time={time}` |
 | `book_appointment` | POST | `https://<admin-backend>/api/v1/doctors/{{doctor_id}}/appointments` |
+
+#### `get_specialties` response:
+```json
+{
+  "success": true,
+  "count": 20,
+  "specialties": [
+    { "id": "uuid", "name": "Cardiology", "description": "Heart and cardiovascular system specialist", "aliases": ["Cardiologist", "Heart Specialist"] }
+  ],
+  "names": ["Cardiology", "General Medicine", "Pediatrics", "..."]
+}
+```
+Use `names[]` to inject the allowed list into the LLM system prompt. Always call this at agent/workflow start and cache the result — specialties change rarely.
+
+#### `get_cities` response:
+```json
+{
+  "success": true,
+  "count": 5,
+  "cities": ["Islamabad", "Karachi", "Lahore", "Peshawar", "Rawalpindi"]
+}
+```
+Only cities that have at least one active, approved doctor are returned. Inject this list into the LLM prompt so it picks an exact city name rather than guessing.
+
+#### `find_doctors` query params:
+| Param | Type | Notes |
+|-------|------|-------|
+| `specialty` | string | Must be an exact canonical name (or alias) from `get_specialties` |
+| `city` | string | Case-insensitive substring match against doctor city |
+
+Returns:
+```json
+{
+  "success": true,
+  "count": 2,
+  "doctors": [
+    {
+      "id": "uuid",
+      "name": "Dr. Sarah Johnson",
+      "specialty": "Cardiology",
+      "city": "Karachi",
+      "experience": 15,
+      "rating": 4.8,
+      "consultationFee": 2000,
+      "workingHours": { "from": "09:00", "to": "17:00" },
+      "workingDays": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    }
+  ]
+}
+```
 
 #### `book_appointment` request body for web voice calls:
 ```json

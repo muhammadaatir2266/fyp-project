@@ -15,6 +15,10 @@ router.get('/doctors/:doctorId/availability', callingAgentController.checkDoctor
 router.get('/doctors/:doctorId/slots', callingAgentController.getAvailableSlots)
 router.post('/doctors/:doctorId/appointments', callingAgentController.bookAppointment)
 
+// Reference data for AI agents
+router.get('/specialties', callingAgentController.getSpecialtiesForAgent)
+router.get('/cities', callingAgentController.getCitiesForAgent)
+
 // ML Model API
 router.post('/ml/predict', mlModelController.predictDisease)
 router.get('/ml/symptoms', mlModelController.getSymptoms)
