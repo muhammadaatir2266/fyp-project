@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
+import { getAuthToken } from '@/lib/auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -190,7 +191,7 @@ export default function DoctorsPage() {
     setFrameUrl(null);
     try {
       const res = await fetch(`${API_URL}/admin/doctors/${doctorId}/documents/${docId}/url`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
       if (res.ok) {
         const { url } = await res.json();
@@ -206,7 +207,7 @@ export default function DoctorsPage() {
     setFrameUrl(null);
     try {
       const res = await fetch(`${API_URL}/admin/doctors/${doctorId}/verification-document/url`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
       if (res.ok) {
         const { url } = await res.json();
@@ -225,7 +226,7 @@ export default function DoctorsPage() {
     let documents: VerificationDocument[] = [];
     try {
       const res = await fetch(`${API_URL}/admin/doctors/${doctor.id}/documents`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+        headers: { Authorization: `Bearer ${getAuthToken()}` },
       });
       if (res.ok) {
         const data = await res.json();
