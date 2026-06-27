@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -69,143 +69,6 @@ const DOC_TYPE_LABELS: Record<string, string> = {
   OTHER: 'Other',
 };
 
-function DocumentsModal({
-  doctorId,
-  doctorName,
-  legacyDocPath,
-  onClose,
-}: {
-  doctorId: string;
-  doctorName: string;
-  legacyDocPath?: string;
-  onClose: () => void;
-}) {
-  const [docs, setDocs] = useState<VerificationDocument[]>([]);
-  const [activeDocId, setActiveDocId] = useState<string | null>(null);
-  const [frameUrl, setFrameUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL;
-
-  const fetchDocs = useCallback(async () => {
-    try {
-      const res = await fetch(`${API_URL}/admin/doctors/${doctorId}/documents`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setDocs(data.documents ?? []);
-      }
-    } catch {
-      // ignore — fall back to legacy
-    } finally {
-      setLoading(false);
-    }
-  }, [API_URL, doctorId]);
-
-  useEffect(() => { fetchDocs(); }, [fetchDocs]);
-
-  const openDoc = useCallback(async (docId: string) => {
-    setActiveDocId(docId);
-    setFrameUrl(null);
-    try {
-      const res = await fetch(`${API_URL}/admin/doctors/${doctorId}/documents/${docId}/url`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
-      });
-      if (res.ok) {
-        const { url } = await res.json();
-        setFrameUrl(url);
-      }
-    } catch {
-      // ignore
-    }
-  }, [API_URL, doctorId]);
-
-  // Open first doc automatically once loaded
-  useEffect(() => {
-    if (docs.length > 0 && !activeDocId) {
-      openDoc(docs[0].id);
-    }
-  }, [docs, activeDocId, openDoc]);
-
-  const legacyUrl = legacyDocPath
-    ? `${API_URL}/admin/doctors/${doctorId}/verification-document`
-    : null;
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-xl shadow-2xl max-w-5xl w-full max-h-[90vh] flex flex-col"
-      >
-        <div className="flex justify-between items-center p-5 border-b">
-          <h3 className="text-xl font-bold text-gray-900">
-            Verification Documents — Dr. {doctorName}
-          </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        {loading ? (
-          <div className="flex-1 flex items-center justify-center text-gray-500 py-16">
-            Loading documents…
-          </div>
-        ) : docs.length === 0 && !legacyUrl ? (
-          <div className="flex-1 flex items-center justify-center text-gray-400 py-16">
-            No documents found
-          </div>
-        ) : (
-          <div className="flex flex-1 overflow-hidden">
-            {/* Sidebar */}
-            <div className="w-52 shrink-0 border-r p-3 overflow-y-auto space-y-1">
-              {docs.map((doc) => (
-                <button
-                  key={doc.id}
-                  onClick={() => openDoc(doc.id)}
-                  className={`w-full text-left px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                    activeDocId === doc.id
-                      ? 'bg-teal-50 text-teal-700 font-semibold'
-                      : 'text-gray-700 hover:bg-gray-50'
-                  }`}
-                >
-                  <div className="font-medium">{DOC_TYPE_LABELS[doc.type]}</div>
-                  <div className="text-xs text-gray-400 truncate">{doc.fileName}</div>
-                </button>
-              ))}
-              {docs.length === 0 && legacyUrl && (
-                <button
-                  onClick={() => setFrameUrl(legacyUrl)}
-                  className="w-full text-left px-3 py-2.5 rounded-lg text-sm bg-teal-50 text-teal-700 font-semibold"
-                >
-                  Medical License
-                </button>
-              )}
-            </div>
-
-            {/* Viewer */}
-            <div className="flex-1 overflow-hidden bg-gray-50">
-              {frameUrl ? (
-                <iframe
-                  key={frameUrl}
-                  src={frameUrl}
-                  className="w-full h-full border-0"
-                  title="Document Viewer"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-full text-gray-400 text-sm">
-                  {activeDocId ? 'Loading document…' : 'Select a document'}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-      </motion.div>
-    </div>
-  );
-}
-
 export default function DoctorsPage() {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -216,10 +79,18 @@ export default function DoctorsPage() {
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
   const [showRejectDialog, setShowRejectDialog] = useState(false);
   const [showApproveDialog, setShowApproveDialog] = useState(false);
-  const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [rejectionNotes, setRejectionNotes] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+
+  // Inline document viewer (inside the details modal)
+  const [showDocViewer, setShowDocViewer] = useState(false);
+  const [docList, setDocList] = useState<VerificationDocument[]>([]);
+  const [activeDocId, setActiveDocId] = useState<string | null>(null);
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
+  const [docsLoading, setDocsLoading] = useState(false);
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
   useEffect(() => {
     api.get('/admin/specialties').then((data: { id: string; name: string }[]) => setSpecialties(data)).catch(() => {});
@@ -294,14 +165,82 @@ export default function DoctorsPage() {
     }
   };
 
+  const resetDocViewer = () => {
+    setShowDocViewer(false);
+    setDocList([]);
+    setActiveDocId(null);
+    setFrameUrl(null);
+    setDocsLoading(false);
+  };
+
   const viewDetails = (doctor: Doctor) => {
+    resetDocViewer();
     setSelectedDoctor(doctor);
     setShowDetailsModal(true);
   };
 
-  const viewDocument = (doctor: Doctor) => {
-    setSelectedDoctor(doctor);
-    setShowDocumentModal(true);
+  const closeDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedDoctor(null);
+    resetDocViewer();
+  };
+
+  const openInlineDoc = async (docId: string, doctorId: string) => {
+    setActiveDocId(docId);
+    setFrameUrl(null);
+    try {
+      const res = await fetch(`${API_URL}/admin/doctors/${doctorId}/documents/${docId}/url`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        setFrameUrl(url);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const openLegacyDoc = async (doctorId: string) => {
+    setActiveDocId(null);
+    setFrameUrl(null);
+    try {
+      const res = await fetch(`${API_URL}/admin/doctors/${doctorId}/verification-document/url`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) {
+        const { url } = await res.json();
+        setFrameUrl(url);
+      }
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleViewDocument = async (doctor: Doctor) => {
+    setShowDocViewer(true);
+    setDocsLoading(true);
+    setFrameUrl(null);
+    setActiveDocId(null);
+    let documents: VerificationDocument[] = [];
+    try {
+      const res = await fetch(`${API_URL}/admin/doctors/${doctor.id}/documents`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        documents = data.documents ?? [];
+      }
+    } catch {
+      // ignore — fall back to legacy
+    }
+    setDocList(documents);
+    setDocsLoading(false);
+    if (documents.length > 0) {
+      openInlineDoc(documents[0].id, doctor.id);
+    } else {
+      openLegacyDoc(doctor.id);
+    }
   };
 
   const filteredDoctors = doctors.filter(doctor => {
@@ -670,16 +609,6 @@ export default function DoctorsPage() {
         </div>
       )}
 
-      {/* Document Modal */}
-      {showDocumentModal && selectedDoctor && (
-        <DocumentsModal
-          doctorId={selectedDoctor.id}
-          doctorName={`${selectedDoctor.firstName} ${selectedDoctor.lastName}`}
-          legacyDocPath={selectedDoctor.verificationDocument}
-          onClose={() => { setShowDocumentModal(false); setSelectedDoctor(null); }}
-        />
-      )}
-
       {/* Doctor Details Modal */}
       {showDetailsModal && selectedDoctor && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
@@ -701,10 +630,7 @@ export default function DoctorsPage() {
                   </div>
                 </div>
                 <button
-                  onClick={() => {
-                    setShowDetailsModal(false);
-                    setSelectedDoctor(null);
-                  }}
+                  onClick={closeDetailsModal}
                   className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
                 >
                   <X className="h-6 w-6" />
@@ -802,14 +728,79 @@ export default function DoctorsPage() {
               {selectedDoctor.verificationDocument && (
                 <div className="mt-6">
                   <h3 className="text-lg font-bold text-gray-900 border-b-2 border-teal-500 pb-2 mb-4">Verification Document</h3>
-                  <Button
-                    variant="outline"
-                    className="w-full hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
-                    onClick={() => viewDocument(selectedDoctor)}
-                  >
-                    <FileText className="h-5 w-5 mr-2" />
-                    View Verification Document
-                  </Button>
+                  {!showDocViewer ? (
+                    <Button
+                      variant="outline"
+                      className="w-full hover:bg-blue-50 hover:text-blue-600 hover:border-blue-300"
+                      onClick={() => handleViewDocument(selectedDoctor)}
+                    >
+                      <FileText className="h-5 w-5 mr-2" />
+                      View Verification Document
+                    </Button>
+                  ) : (
+                    <div className="rounded-lg border border-gray-200 overflow-hidden">
+                      {/* Viewer toolbar */}
+                      <div className="flex items-center justify-between gap-3 bg-gray-50 px-3 py-2 border-b border-gray-200">
+                        <div className="flex items-center gap-2 overflow-x-auto">
+                          {docList.length > 0 ? (
+                            docList.map((doc) => (
+                              <button
+                                key={doc.id}
+                                onClick={() => openInlineDoc(doc.id, selectedDoctor.id)}
+                                className={`shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                                  activeDocId === doc.id
+                                    ? 'bg-teal-600 text-white'
+                                    : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-100'
+                                }`}
+                              >
+                                {DOC_TYPE_LABELS[doc.type] ?? doc.type}
+                              </button>
+                            ))
+                          ) : (
+                            <span className="text-xs font-medium text-gray-500 px-1">Medical License</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {frameUrl && (
+                            <a
+                              href={frameUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs font-medium text-teal-600 hover:text-teal-700 hover:underline"
+                            >
+                              Open in new tab
+                            </a>
+                          )}
+                          <button
+                            onClick={resetDocViewer}
+                            className="text-gray-400 hover:text-gray-600"
+                            title="Close viewer"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </div>
+                      {/* Viewer body */}
+                      <div className="bg-gray-100">
+                        {docsLoading ? (
+                          <div className="flex items-center justify-center h-[500px] text-sm text-gray-500">
+                            Loading documents…
+                          </div>
+                        ) : frameUrl ? (
+                          <iframe
+                            key={frameUrl}
+                            src={frameUrl}
+                            className="w-full h-[500px] border-0"
+                            title="Document Viewer"
+                          />
+                        ) : (
+                          <div className="flex items-center justify-center h-[500px] text-sm text-gray-400">
+                            Loading document…
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -869,10 +860,7 @@ export default function DoctorsPage() {
               )}
               <Button
                 variant="outline"
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  setSelectedDoctor(null);
-                }}
+                onClick={closeDetailsModal}
               >
                 Close
               </Button>

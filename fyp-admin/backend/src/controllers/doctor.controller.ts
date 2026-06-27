@@ -294,6 +294,36 @@ export const getVerificationDocument = async (req: Request, res: Response): Prom
   }
 }
 
+// GET /admin/doctors/:id/verification-document/url
+export const getVerificationDocumentUrl = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const id = req.params.id as string
+
+    const doctor = await prisma.doctor.findUnique({
+      where: { id },
+      select: { verificationDocument: true },
+    })
+
+    if (!doctor || !doctor.verificationDocument) {
+      res.status(404).json({ message: 'Document not found' })
+      return
+    }
+
+    const docPath = doctor.verificationDocument
+
+    if (!isR2Key(docPath)) {
+      res.status(404).json({ message: 'Document is not available for inline viewing' })
+      return
+    }
+
+    const url = await getPresignedGetUrl(docPath, 3600)
+    res.json({ url })
+  } catch (error) {
+    console.error('Get verification document URL error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
 // GET /admin/doctors/:id/documents
 export const getDoctorDocuments = async (req: Request, res: Response): Promise<void> => {
   try {
