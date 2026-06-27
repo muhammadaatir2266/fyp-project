@@ -19,6 +19,22 @@ export async function createRetellWebCall(opts: CreateWebCallOptions) {
   const agentId = process.env['RETELL_AGENT_ID']
   if (!agentId) throw new Error('RETELL_AGENT_ID is not set')
 
+  // Provide the agent with the current date so it can resolve relative dates
+  // ("tomorrow", "next Monday") and avoid booking in the past. Anchored to
+  // Pakistan time since that's where patients/doctors are.
+  const timezone = 'Asia/Karachi'
+  const now = new Date()
+  const currentDate = new Intl.DateTimeFormat('en-CA', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(now) // YYYY-MM-DD
+  const currentDay = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    weekday: 'long',
+  }).format(now)
+
   const params: Retell.CallCreateWebCallParams = {
     agent_id: agentId,
     metadata: {
@@ -33,6 +49,9 @@ export async function createRetellWebCall(opts: CreateWebCallOptions) {
       patient_name: opts.patientName,
       doctor_name: opts.doctorName,
       doctor_specialty: opts.doctorSpecialty,
+      current_date: currentDate,
+      current_day: currentDay,
+      timezone,
     },
   }
 
