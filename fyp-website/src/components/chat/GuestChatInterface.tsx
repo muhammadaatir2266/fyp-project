@@ -152,7 +152,7 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
       for (let i = 0; i < aiMessages.length; i++) {
         setMessages((prev) => [...prev, aiMessages[i]]);
         if (i < aiMessages.length - 1) {
-          await new Promise((r) => setTimeout(r, 650));
+          await new Promise((r) => setTimeout(r, 1400));
         }
       }
 
@@ -259,9 +259,9 @@ export default function GuestChatInterface({ embedded = false }: { embedded?: bo
             return (
             <motion.div
               key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2 }}
+              initial={{ opacity: 0, y: 14, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
               className={cn(
                 "flex w-full",
                 msg.role === "user" ? "justify-end" : "justify-start",

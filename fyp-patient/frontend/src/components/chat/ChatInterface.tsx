@@ -159,7 +159,7 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
           setMessages((prev) => [...prev, aiMessages[i]]);
           if (i < aiMessages.length - 1) {
             // Keep typing indicator visible between bubbles
-            await new Promise((r) => setTimeout(r, 650));
+            await new Promise((r) => setTimeout(r, 1400));
           }
         }
       } else {
@@ -235,9 +235,9 @@ export function ChatInterface({ embedded = false }: { embedded?: boolean }) {
           return (
           <motion.div
             key={message.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2, ease: "easeOut" }}
+            initial={{ opacity: 0, y: 14, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
             className={cn(
               "flex w-full",
               message.role === "user" ? "justify-end" : "justify-start",
