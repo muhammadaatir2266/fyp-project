@@ -1,6 +1,6 @@
 # DocLink — AI-Powered Virtual Medical Assistant
 
-Multi-portal healthcare platform with patient AI chat care, disease prediction, doctor recommendations, and a voice calling agent for doctor-side call automation.
+Multi-portal healthcare platform with patient AI chat, disease prediction, doctor recommendations, and a voice calling agent for doctor-side call automation.
 
 ## Architecture
 
