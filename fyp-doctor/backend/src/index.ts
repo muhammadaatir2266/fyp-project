@@ -4,6 +4,7 @@ import cors from 'cors'
 
 import authRoutes from './routes/auth.routes'
 import doctorRoutes from './routes/doctor.routes'
+import googleRoutes from './routes/google.routes'
 import webhookRoutes from './routes/webhook.routes'
 
 const app = express()
@@ -19,6 +20,9 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 app.use('/api/auth', authRoutes)
+// Mounted before /api/doctor so the public Google OAuth callback bypasses the
+// global doctor auth middleware.
+app.use('/api/doctor/google', googleRoutes)
 app.use('/api/doctor', doctorRoutes)
 app.use('/api/webhooks', webhookRoutes)
 

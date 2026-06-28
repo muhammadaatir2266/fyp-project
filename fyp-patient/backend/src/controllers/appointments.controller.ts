@@ -3,6 +3,13 @@ import { prisma } from '../lib/prisma'
 import { z } from 'zod'
 import { AppError } from '../middleware/error.middleware'
 import { buildBookedMap, validateScheduledSlot } from '../lib/availability'
+import {
+  getBusyIntervals,
+  blockBusyIntoBookedTimes,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+} from '../lib/google-calendar'
 import Retell from 'retell-sdk'
 import { createRetellWebCall } from '../lib/retell'
 
@@ -69,10 +76,15 @@ export const bookAppointment = async (req: Request, res: Response) => {
       where: { id: data.doctorId, isActive: true, isVerified: true },
       select: {
         id: true,
+        firstName: true,
+        lastName: true,
         availableFrom: true,
         availableTo: true,
         workingDays: true,
         unavailableDates: true,
+        googleCalendarConnected: true,
+        googleRefreshToken: true,
+        googleCalendarId: true,
       },
     })
     if (!doctor) throw new AppError('Doctor not found or not available', 404)
@@ -96,6 +108,10 @@ export const bookAppointment = async (req: Request, res: Response) => {
     const dateStr = scheduledAt.toISOString().split('T')[0]
     const bookedTimesForDay = bookedMap.get(dateStr) ?? new Set<string>()
 
+    // Block any slot overlapping the doctor's external Google busy times (fail-open).
+    const busy = await getBusyIntervals(doctor, dayStart, dayEnd)
+    blockBusyIntoBookedTimes(dayStart, busy, bookedTimesForDay)
+
     const validation = validateScheduledSlot(doctor, scheduledAt, bookedTimesForDay)
     if (!validation.valid) throw new AppError(validation.error!, 400)
 
@@ -111,6 +127,19 @@ export const bookAppointment = async (req: Request, res: Response) => {
       },
       include: { doctor: { include: { specialty: true } } },
     })
+
+    // Best-effort: mirror the appointment onto the doctor's Google Calendar.
+    if (doctor.googleCalendarConnected) {
+      const eventId = await createCalendarEvent(doctor, {
+        start: scheduledAt,
+        end: new Date(scheduledAt.getTime() + data.duration * 60000),
+        summary: `Appointment with patient`,
+        description: data.reason ?? 'Booked via DocLink patient app.',
+      })
+      if (eventId) {
+        await prisma.appointment.update({ where: { id: appointment.id }, data: { googleEventId: eventId } }).catch(() => {})
+      }
+    }
 
     res.status(201).json(appointment)
   } catch (error) {
@@ -154,6 +183,9 @@ export const updateAppointment = async (req: Request, res: Response) => {
             availableTo: true,
             workingDays: true,
             unavailableDates: true,
+            googleCalendarConnected: true,
+            googleRefreshToken: true,
+            googleCalendarId: true,
           },
         },
       },
@@ -196,6 +228,10 @@ export const updateAppointment = async (req: Request, res: Response) => {
       const dateStr = scheduledAt.toISOString().split('T')[0]
       const bookedTimesForDay = bookedMap.get(dateStr) ?? new Set<string>()
 
+      // Block slots overlapping the doctor's external Google busy times (fail-open).
+      const busy = await getBusyIntervals(existing.doctor, dayStart, dayEnd)
+      blockBusyIntoBookedTimes(dayStart, busy, bookedTimesForDay)
+
       const validation = validateScheduledSlot(existing.doctor, scheduledAt, bookedTimesForDay, id)
       if (!validation.valid) throw new AppError(validation.error!, 400)
 
@@ -213,6 +249,19 @@ export const updateAppointment = async (req: Request, res: Response) => {
       data: updateData,
       include: { doctor: { include: { specialty: true } } },
     })
+
+    // Best-effort Google Calendar sync (fail-open).
+    if (existing.doctor.googleCalendarConnected && existing.googleEventId) {
+      if (data.status === 'CANCELLED') {
+        await deleteCalendarEvent(existing.doctor, existing.googleEventId)
+        await prisma.appointment.update({ where: { id }, data: { googleEventId: null } }).catch(() => {})
+      } else if (updateData.scheduledAt) {
+        await updateCalendarEvent(existing.doctor, existing.googleEventId, {
+          start: updateData.scheduledAt as Date,
+          end: new Date((updateData.scheduledAt as Date).getTime() + existing.duration * 60000),
+        })
+      }
+    }
 
     res.json(updated)
   } catch (error) {

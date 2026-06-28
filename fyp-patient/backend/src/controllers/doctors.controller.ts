@@ -4,6 +4,7 @@ import { haversineKm } from '../lib/geocode'
 import { findSoonestSlot, buildBookedMap, generateDaySlots } from '../lib/availability'
 import { batchDoctorMetrics } from '../lib/doctorMetrics'
 import { resolveSpecialty } from '../lib/specialty'
+import { getBusyIntervals, blockBusyIntoBookedTimes } from '../lib/google-calendar'
 
 export const getDoctors = async (req: Request, res: Response) => {
   try {
@@ -317,6 +318,15 @@ export const getDoctorSlots = async (req: Request, res: Response) => {
     }))
 
     const requestedDate = new Date(date)
+
+    // Subtract the doctor's external Google Calendar busy times (fail-open).
+    const busy = await getBusyIntervals(
+      doctor,
+      new Date(`${date}T00:00:00`),
+      new Date(`${date}T23:59:59`),
+    )
+    blockBusyIntoBookedTimes(requestedDate, busy, bookedTimes)
+
     const slots = generateDaySlots(doctor, requestedDate, bookedTimes)
 
     if (slots.length === 0 && !doctor.workingDays.includes(requestedDate.toLocaleDateString('en-US', { weekday: 'long' }))) {

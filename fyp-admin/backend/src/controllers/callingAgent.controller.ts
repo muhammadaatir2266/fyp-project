@@ -1,12 +1,19 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
 import prisma from '../config/database'
+import {
+  getBusyIntervals,
+  createCalendarEvent,
+  type GoogleDoctor,
+  type BusyInterval,
+} from '../lib/google-calendar'
 
 async function getSuggestedTimeSlots(
   doctorId: string,
   date: string,
   availableFrom: string,
-  availableTo: string
+  availableTo: string,
+  googleDoctor?: GoogleDoctor
 ): Promise<string[]> {
   const startHour = parseInt(availableFrom.split(':')[0])
   const startMinute = parseInt(availableFrom.split(':')[1])
@@ -24,6 +31,11 @@ async function getSuggestedTimeSlots(
     select: { scheduledAt: true, duration: true },
   })
 
+  // External Google busy times block slots too (fail-open: [] when not connected).
+  const busy: BusyInterval[] = googleDoctor
+    ? await getBusyIntervals(googleDoctor, dayStart, dayEnd)
+    : []
+
   const slots: string[] = []
 
   for (let hour = startHour; hour < endHour; hour++) {
@@ -40,7 +52,9 @@ async function getSuggestedTimeSlots(
         return slotStart < aptEnd && slotEnd > aptStart
       })
 
-      if (!hasConflict) slots.push(timeString)
+      const hasBusyConflict = busy.some((b) => slotStart < b.end && slotEnd > b.start)
+
+      if (!hasConflict && !hasBusyConflict) slots.push(timeString)
     }
   }
 
@@ -67,6 +81,7 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
         id: true, firstName: true, lastName: true,
         availableFrom: true, availableTo: true,
         workingDays: true, unavailableDates: true, isActive: true,
+        googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
         specialty: { select: { name: true } },
       },
     })
@@ -136,18 +151,22 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
       select: { scheduledAt: true, duration: true },
     })
 
-    const hasConflict = existingAppointments.some((apt) => {
-      const aptStart = new Date(apt.scheduledAt)
-      const aptEnd = new Date(aptStart.getTime() + apt.duration * 60000)
-      return startTime < aptEnd && endTime > aptStart
-    })
+    // External Google busy times also make a slot unavailable (fail-open).
+    const busy = await getBusyIntervals(doctor, dayStart, dayEnd)
+
+    const hasConflict =
+      existingAppointments.some((apt) => {
+        const aptStart = new Date(apt.scheduledAt)
+        const aptEnd = new Date(aptStart.getTime() + apt.duration * 60000)
+        return startTime < aptEnd && endTime > aptStart
+      }) || busy.some((b) => startTime < b.end && endTime > b.start)
 
     if (hasConflict) {
       res.json({
         success: false, available: false,
         message: 'This time slot is already booked',
         doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
-        suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo),
+        suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor),
       })
       return
     }
@@ -180,6 +199,7 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
         id: true, firstName: true, lastName: true,
         availableFrom: true, availableTo: true,
         workingDays: true, unavailableDates: true, isActive: true,
+        googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
         specialty: { select: { name: true } },
       },
     })
@@ -208,7 +228,7 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
 
     const availableFrom = doctor.availableFrom ?? '09:00'
     const availableTo = doctor.availableTo ?? '17:00'
-    const slots = await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo)
+    const slots = await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor)
 
     res.json({
       success: true,
@@ -264,7 +284,10 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
 
     const doctor = await prisma.doctor.findUnique({
       where: { id: doctorId },
-      select: { id: true, firstName: true, lastName: true, isActive: true },
+      select: {
+        id: true, firstName: true, lastName: true, isActive: true,
+        googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
+      },
     })
 
     if (!doctor || !doctor.isActive) {
@@ -356,6 +379,21 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
       },
       include: { patient: true, doctor: { include: { specialty: true } } },
     })
+
+    // Best-effort: mirror the appointment onto the doctor's Google Calendar.
+    if (doctor.googleCalendarConnected) {
+      const eventId = await createCalendarEvent(doctor, {
+        start: appointment.scheduledAt,
+        end: new Date(appointment.scheduledAt.getTime() + appointment.duration * 60000),
+        summary: `Appointment with ${appointment.patient.firstName} ${appointment.patient.lastName}`,
+        description: appointment.reason ?? 'Booked via voice assistant.',
+      })
+      if (eventId) {
+        await prisma.appointment
+          .update({ where: { id: appointment.id }, data: { googleEventId: eventId } })
+          .catch(() => {})
+      }
+    }
 
     res.status(201).json({
       success: true,

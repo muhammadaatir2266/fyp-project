@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Save, Calendar as CalendarIcon, CheckCircle2, XCircle, Info } from "lucide-react";
+import { Clock, Save, Calendar as CalendarIcon, CheckCircle2, XCircle, Info, Link2, Unlink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -30,9 +30,70 @@ export default function AvailabilityPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
 
+  const [googleStatus, setGoogleStatus] = useState<{
+    configured: boolean;
+    connected: boolean;
+    email: string | null;
+  } | null>(null);
+  const [googleBusy, setGoogleBusy] = useState(false);
+
   useEffect(() => {
     fetchAvailability();
+    fetchGoogleStatus();
+
+    // Handle the OAuth callback redirect (?google=connected|error)
+    const params = new URLSearchParams(window.location.search);
+    const googleParam = params.get("google");
+    if (googleParam) {
+      if (googleParam === "connected") {
+        setMessage("Google Calendar connected successfully!");
+      } else {
+        setMessage("Failed to connect Google Calendar. Please try again.");
+      }
+      setTimeout(() => setMessage(""), 4000);
+      // Strip the query param so a refresh doesn't re-trigger the message.
+      window.history.replaceState({}, "", window.location.pathname);
+    }
   }, []);
+
+  const fetchGoogleStatus = async () => {
+    try {
+      const response = await api.get("/doctor/google/status");
+      setGoogleStatus(response.data);
+    } catch (error) {
+      console.error("Failed to fetch Google status:", error);
+      setGoogleStatus({ configured: false, connected: false, email: null });
+    }
+  };
+
+  const handleConnectGoogle = async () => {
+    setGoogleBusy(true);
+    try {
+      const response = await api.get("/doctor/google/connect");
+      window.location.href = response.data.url;
+    } catch (error) {
+      console.error("Failed to start Google connection:", error);
+      setMessage("Failed to start Google connection.");
+      setTimeout(() => setMessage(""), 3000);
+      setGoogleBusy(false);
+    }
+  };
+
+  const handleDisconnectGoogle = async () => {
+    setGoogleBusy(true);
+    try {
+      await api.post("/doctor/google/disconnect");
+      await fetchGoogleStatus();
+      setMessage("Google Calendar disconnected successfully.");
+      setTimeout(() => setMessage(""), 3000);
+    } catch (error) {
+      console.error("Failed to disconnect Google Calendar:", error);
+      setMessage("Failed to disconnect Google Calendar.");
+      setTimeout(() => setMessage(""), 3000);
+    } finally {
+      setGoogleBusy(false);
+    }
+  };
 
   const fetchAvailability = async () => {
     try {
@@ -477,6 +538,77 @@ export default function AvailabilityPage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Google Calendar Section */}
+      {googleStatus?.configured && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.35 }}
+        >
+          <Card className="hover:shadow-lg transition-shadow duration-300">
+            <CardHeader className="space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="p-2 rounded-lg bg-primary/10">
+                  <CalendarIcon className="h-5 w-5 text-primary" />
+                </div>
+                <CardTitle>Google Calendar</CardTitle>
+              </div>
+              <CardDescription>
+                Your Google busy times block bookings, and new appointments are added to your calendar automatically.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-lg flex items-center justify-center ${
+                      googleStatus.connected ? "bg-green-500/10" : "bg-muted"
+                    }`}
+                  >
+                    {googleStatus.connected ? (
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <Link2 className="h-5 w-5 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium">
+                      {googleStatus.connected ? "Connected" : "Not connected"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {googleStatus.connected
+                        ? googleStatus.email ?? "Google Calendar linked"
+                        : "Connect to sync your external busy times"}
+                    </p>
+                  </div>
+                </div>
+
+                {googleStatus.connected ? (
+                  <Button
+                    variant="outline"
+                    onClick={handleDisconnectGoogle}
+                    disabled={googleBusy}
+                    className="min-w-[160px]"
+                  >
+                    <Unlink className="h-4 w-4 mr-2" />
+                    Disconnect
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleConnectGoogle}
+                    disabled={googleBusy}
+                    className="min-w-[160px] shadow-md"
+                  >
+                    <Link2 className="h-4 w-4 mr-2" />
+                    Connect Google Calendar
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       {/* Save Button */}
       <motion.div

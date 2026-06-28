@@ -132,6 +132,20 @@ export default function Footer() {
           <p className="text-sm text-slate-400">
             © {currentYear} DocLink. All rights reserved.
           </p>
+          <div className="flex items-center gap-6">
+            <Link
+              href="/privacy"
+              className="text-sm text-slate-400 hover:text-primary transition-colors"
+            >
+              Privacy Policy
+            </Link>
+            <Link
+              href="/terms"
+              className="text-sm text-slate-400 hover:text-primary transition-colors"
+            >
+              Terms of Service
+            </Link>
+          </div>
         </div>
       </div>
     </footer>

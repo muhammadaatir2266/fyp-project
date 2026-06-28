@@ -190,6 +190,12 @@ model Doctor {
   workingDays      String[]
   unavailableDates String[]  @default([])
 
+  // Google Calendar integration (availability sync). Refresh token is encrypted at rest.
+  googleCalendarConnected Boolean @default(false)
+  googleRefreshToken      String?
+  googleCalendarId        String? @default("primary")
+  googleCalendarEmail     String?
+
   // Verification fields
   licenseNumber        String?
   verificationDocument String?
@@ -355,6 +361,9 @@ model Appointment {
   notes        String?
   cancelledBy  CancelledBy?
   confirmedAt  DateTime?
+
+  // Google Calendar event id (set when synced to the doctor's calendar)
+  googleEventId String?
 
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
