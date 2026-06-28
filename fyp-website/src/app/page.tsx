@@ -320,12 +320,6 @@ export default function Home() {
             variants={container}
             className="mx-auto max-w-6xl text-center"
           >
-            <motion.div variants={fadeUp} className="mb-6 flex justify-center">
-              <span className="inline-flex items-center rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
-                <span className="mr-2 flex h-2 w-2 rounded-full bg-primary"></span>
-                v2.0 is now live
-              </span>
-            </motion.div>
 
             <motion.h1
               variants={fadeUp}

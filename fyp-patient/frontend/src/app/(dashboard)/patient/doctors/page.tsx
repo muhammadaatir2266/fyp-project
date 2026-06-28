@@ -743,7 +743,7 @@ function DoctorsContent() {
                         ) : (
                           <PhoneCall className="h-3.5 w-3.5" />
                         )}
-                        AI Assistant
+                        Book by Call
                       </Button>
                     )}
 
