@@ -105,7 +105,7 @@ export const getPatientChatHistory = async (req: Request, res: Response): Promis
 
     const hasAppointment = await prisma.appointment.findFirst({
       where: { patientId: id, doctorId },
-      include: { patient: { select: { allowDoctorChatAccess: true } } },
+      include: { patient: { select: { id: true, allowDoctorChatAccess: true } } },
     })
 
     if (!hasAppointment) {

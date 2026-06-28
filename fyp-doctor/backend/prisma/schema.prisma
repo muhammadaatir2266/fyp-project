@@ -149,6 +149,10 @@ model Patient {
   medicalHistory   String?
   allergies        String?
 
+  // Privacy preferences
+  shareDataWithAI       Boolean   @default(true)
+  allowDoctorChatAccess Boolean   @default(true)
+
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
@@ -215,6 +219,10 @@ model Doctor {
 
   isActive         Boolean   @default(false)
   isVerified       Boolean   @default(false)
+
+  // Notification preferences
+  emailNotifications Boolean @default(true)
+  smsNotifications   Boolean @default(false)
 
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt

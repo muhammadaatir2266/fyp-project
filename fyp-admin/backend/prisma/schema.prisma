@@ -101,6 +101,7 @@ model ApiToken {
   id              String    @id @default(uuid())
   name            String
   token           String    @unique
+  tokenHash       String?   @unique   // SHA-256(token) — used for secure lookup when present
   adminId         String
   admin           Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
