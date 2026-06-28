@@ -148,24 +148,44 @@ export async function getBusyIntervals(
   }
 }
 
+const APPOINTMENT_TZ = process.env.APPOINTMENT_TIMEZONE || 'Asia/Karachi'
+
+function gcalTzOffsetMs(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: APPOINTMENT_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(at)
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0')
+  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')) - at.getTime()
+}
+
+function gcalCivilSlotToDate(dateStr: string, slot: string): Date {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const [h, min] = slot.split(':').map(Number)
+  const probe = new Date(Date.UTC(y, mo - 1, d, 12))
+  const offset = gcalTzOffsetMs(probe)
+  return new Date(Date.UTC(y, mo - 1, d) - offset + (h * 60 + min) * 60_000)
+}
+
 /**
  * Mark every 30-min slot that overlaps a Google busy interval as taken by
- * adding its HH:MM string to an existing booked-times set. Date overlap is
- * timezone-agnostic (absolute instants), matching the existing slot logic.
+ * adding its HH:MM string (in APPOINTMENT_TZ) to an existing booked-times set.
  */
 export function blockBusyIntoBookedTimes(
-  date: Date,
+  dateStr: string,
   busy: BusyInterval[],
   bookedTimes: Set<string>,
 ): void {
   if (busy.length === 0) return
   for (let h = 0; h < 24; h++) {
     for (const m of [0, 30]) {
-      const slotStart = new Date(date)
-      slotStart.setHours(h, m, 0, 0)
-      const slotEnd = new Date(slotStart.getTime() + 30 * 60000)
+      const slot = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+      const slotStart = gcalCivilSlotToDate(dateStr, slot)
+      const slotEnd = new Date(slotStart.getTime() + 30 * 60_000)
       if (busy.some((b) => slotStart < b.end && slotEnd > b.start)) {
-        bookedTimes.add(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
+        bookedTimes.add(slot)
       }
     }
   }

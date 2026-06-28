@@ -12,6 +12,8 @@ export interface CreateWebCallOptions {
   doctorSpecialty: string
   patientId: string
   patientName: string
+  patientPhone?: string | null
+  patientEmail?: string | null
   intentId: string
 }
 
@@ -47,6 +49,8 @@ export async function createRetellWebCall(opts: CreateWebCallOptions) {
       intent_id: opts.intentId,
       doctor_id: opts.doctorId,
       patient_name: opts.patientName,
+      patient_phone: opts.patientPhone?.trim() || '',
+      patient_email: opts.patientEmail?.trim() || '',
       doctor_name: opts.doctorName,
       doctor_specialty: opts.doctorSpecialty,
       current_date: currentDate,

@@ -2,7 +2,7 @@ import { Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
 import { z } from 'zod'
 import { AppError } from '../middleware/error.middleware'
-import { buildBookedMap, validateScheduledSlot } from '../lib/availability'
+import { buildBookedMap, validateScheduledSlot, civilDateKey, civilDayBounds } from '../lib/availability'
 import {
   getBusyIntervals,
   blockBusyIntoBookedTimes,
@@ -91,11 +91,9 @@ export const bookAppointment = async (req: Request, res: Response) => {
     })
     if (!doctor) throw new AppError('Doctor not found or not available', 404)
 
-    // Load booked slots for the same day
-    const dayStart = new Date(scheduledAt)
-    dayStart.setHours(0, 0, 0, 0)
-    const dayEnd = new Date(scheduledAt)
-    dayEnd.setHours(23, 59, 59, 999)
+    // Load booked slots for the civil day in APPOINTMENT_TZ.
+    const dateStr = civilDateKey(scheduledAt)
+    const { start: dayStart, end: dayEnd } = civilDayBounds(dateStr)
 
     const dayAppointments = await prisma.appointment.findMany({
       where: {
@@ -107,12 +105,11 @@ export const bookAppointment = async (req: Request, res: Response) => {
     })
 
     const bookedMap = buildBookedMap(dayAppointments.map((a) => a.scheduledAt))
-    const dateStr = scheduledAt.toISOString().split('T')[0]
     const bookedTimesForDay = bookedMap.get(dateStr) ?? new Set<string>()
 
     // Block any slot overlapping the doctor's external Google busy times (fail-open).
     const busy = await getBusyIntervals(doctor, dayStart, dayEnd)
-    blockBusyIntoBookedTimes(dayStart, busy, bookedTimesForDay)
+    blockBusyIntoBookedTimes(dateStr, busy, bookedTimesForDay)
 
     const validation = validateScheduledSlot(doctor, scheduledAt, bookedTimesForDay)
     if (!validation.valid) throw new AppError(validation.error!, 400)
@@ -212,11 +209,9 @@ export const updateAppointment = async (req: Request, res: Response) => {
     if (data.scheduledAt) {
       const scheduledAt = new Date(data.scheduledAt)
 
-      // Load booked slots for the requested day, excluding this appointment
-      const dayStart = new Date(scheduledAt)
-      dayStart.setHours(0, 0, 0, 0)
-      const dayEnd = new Date(scheduledAt)
-      dayEnd.setHours(23, 59, 59, 999)
+      // Load booked slots for the civil day in APPOINTMENT_TZ, excluding this appointment.
+      const dateStr = civilDateKey(scheduledAt)
+      const { start: dayStart, end: dayEnd } = civilDayBounds(dateStr)
 
       const dayAppointments = await prisma.appointment.findMany({
         where: {
@@ -229,12 +224,11 @@ export const updateAppointment = async (req: Request, res: Response) => {
       })
 
       const bookedMap = buildBookedMap(dayAppointments.map((a) => a.scheduledAt))
-      const dateStr = scheduledAt.toISOString().split('T')[0]
       const bookedTimesForDay = bookedMap.get(dateStr) ?? new Set<string>()
 
       // Block slots overlapping the doctor's external Google busy times (fail-open).
       const busy = await getBusyIntervals(existing.doctor, dayStart, dayEnd)
-      blockBusyIntoBookedTimes(dayStart, busy, bookedTimesForDay)
+      blockBusyIntoBookedTimes(dateStr, busy, bookedTimesForDay)
 
       const validation = validateScheduledSlot(existing.doctor, scheduledAt, bookedTimesForDay, id)
       if (!validation.valid) throw new AppError(validation.error!, 400)
@@ -282,7 +276,12 @@ export const createVoiceCall = async (req: Request, res: Response) => {
 
     const patient = await prisma.patient.findUnique({
       where: { id: patientId },
-      select: { firstName: true, lastName: true, phone: true },
+      select: {
+        firstName: true,
+        lastName: true,
+        phone: true,
+        user: { select: { email: true } },
+      },
     })
     if (!patient) throw new AppError('Patient profile not found', 404)
 
@@ -320,6 +319,8 @@ export const createVoiceCall = async (req: Request, res: Response) => {
         doctorSpecialty,
         patientId,
         patientName,
+        patientPhone: patient.phone,
+        patientEmail: patient.user.email,
         intentId: intent.id,
       })
       accessToken = retellCall.accessToken

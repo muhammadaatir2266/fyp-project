@@ -11,21 +11,46 @@ import {
 const SLOT_MINUTES = 30
 const pad = (n: number) => String(n).padStart(2, '0')
 
-function localDateKey(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+const APPOINTMENT_TZ = process.env.APPOINTMENT_TIMEZONE || 'Asia/Karachi'
+
+function tzOffsetMs(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: APPOINTMENT_TZ,
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(at)
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0')
+  return Date.UTC(get('year'), get('month') - 1, get('day'), get('hour'), get('minute'), get('second')) - at.getTime()
 }
 
-function slotStartAt(dateStr: string, slot: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number)
+function civilDateKey(d: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: APPOINTMENT_TZ }).format(d)
+}
+
+function civilSlotToDate(dateStr: string, slot: string): Date {
+  const [y, mo, d] = dateStr.split('-').map(Number)
   const [h, min] = slot.split(':').map(Number)
-  const dt = new Date(y, m - 1, d)
-  dt.setHours(h, min, 0, 0)
-  return dt
+  const probe = new Date(Date.UTC(y, mo - 1, d, 12))
+  const offset = tzOffsetMs(probe)
+  return new Date(Date.UTC(y, mo - 1, d) - offset + (h * 60 + min) * 60_000)
+}
+
+function civilDayBounds(dateStr: string): { start: Date; end: Date } {
+  const start = civilSlotToDate(dateStr, '00:00')
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const probe = new Date(Date.UTC(y, mo - 1, d, 12))
+  const offset = tzOffsetMs(probe)
+  return { start, end: new Date(Date.UTC(y, mo - 1, d + 1) - offset - 1) }
+}
+
+function civilWeekday(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', { timeZone: APPOINTMENT_TZ, weekday: 'long' }).format(date)
 }
 
 function earliestBookableAt(minAdvanceSlots: number, now: Date = new Date()): Date {
-  const slots = Math.max(0, minAdvanceSlots ?? 0)
-  const earliest = new Date(now.getTime() + slots * SLOT_MINUTES * 60_000)
+  const count = Math.max(0, minAdvanceSlots ?? 0)
+  const earliest = new Date(now.getTime() + count * SLOT_MINUTES * 60_000)
   const minutes = earliest.getMinutes()
   const remainder = minutes % SLOT_MINUTES
   if (remainder !== 0 || earliest.getSeconds() > 0 || earliest.getMilliseconds() > 0) {
@@ -37,16 +62,16 @@ function earliestBookableAt(minAdvanceSlots: number, now: Date = new Date()): Da
 }
 
 function isSlotTooSoon(dateStr: string, slot: string, minAdvanceSlots: number, now: Date = new Date()): boolean {
-  const todayKey = localDateKey(now)
-  if (dateStr < todayKey) return true
-  if (dateStr > todayKey) return false
-  return slotStartAt(dateStr, slot) < earliestBookableAt(minAdvanceSlots, now)
+  const today = civilDateKey(now)
+  if (dateStr < today) return true
+  if (dateStr > today) return false
+  return civilSlotToDate(dateStr, slot) < earliestBookableAt(minAdvanceSlots, now)
 }
 
 function filterBookableSlots(dateStr: string, slots: string[], minAdvanceSlots: number, now: Date = new Date()): string[] {
-  const todayKey = localDateKey(now)
-  if (dateStr < todayKey) return []
-  if (dateStr > todayKey) return slots
+  const today = civilDateKey(now)
+  if (dateStr < today) return []
+  if (dateStr > today) return slots
   return slots.filter((slot) => !isSlotTooSoon(dateStr, slot, minAdvanceSlots, now))
 }
 
@@ -73,8 +98,7 @@ async function getSuggestedTimeSlots(
   slotOverrides?: unknown,
   minAdvanceSlots = 2,
 ): Promise<string[]> {
-  const dayStart = new Date(`${date}T00:00:00`)
-  const dayEnd = new Date(`${date}T23:59:59`)
+  const { start: dayStart, end: dayEnd } = civilDayBounds(date)
 
   const existingAppointments = await prisma.appointment.findMany({
     where: {
@@ -103,21 +127,21 @@ async function getSuggestedTimeSlots(
     for (let hour = startHour; hour < endHour; hour++) {
       for (const minute of [0, 30]) {
         if (hour === startHour && minute < startMinute) continue
-        candidateTimes.push(
-          `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-        )
+        candidateTimes.push(`${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`)
       }
     }
   }
 
   const slots: string[] = []
   for (const timeString of candidateTimes) {
-    const slotStart = new Date(`${date}T${timeString}`)
-    const slotEnd = new Date(slotStart.getTime() + 30 * 60000)
+    // Build slot instants as civil times in APPOINTMENT_TZ so overlap checks
+    // are correct regardless of server timezone.
+    const slotStart = civilSlotToDate(date, timeString)
+    const slotEnd = new Date(slotStart.getTime() + 30 * 60_000)
 
     const hasConflict = existingAppointments.some((apt: { scheduledAt: Date; duration: number }) => {
       const aptStart = new Date(apt.scheduledAt)
-      const aptEnd = new Date(aptStart.getTime() + apt.duration * 60000)
+      const aptEnd = new Date(aptStart.getTime() + apt.duration * 60_000)
       return slotStart < aptEnd && slotEnd > aptStart
     })
 
@@ -164,9 +188,10 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
       return
     }
 
-    const requestedDate = new Date(date)
-    const requestedDateTime = new Date(`${date}T${time}`)
-    const dayOfWeek = requestedDate.toLocaleDateString('en-US', { weekday: 'long' })
+    // Build civil slot instant in APPOINTMENT_TZ so conflict checks are correct.
+    const requestedDateTime = civilSlotToDate(date, time)
+    const requestedDate = civilSlotToDate(date, '12:00')
+    const dayOfWeek = civilWeekday(requestedDate)
 
     if (requestedDateTime < new Date()) {
       res.json({
@@ -208,7 +233,7 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
         return
       }
     } else {
-      if (doctor.unavailableDates?.some((d) => new Date(d).toDateString() === requestedDate.toDateString())) {
+      if (doctor.unavailableDates?.includes(date)) {
         res.json({
           success: false, available: false,
           message: 'Doctor is not available on this date',
@@ -238,10 +263,9 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
       }
     }
 
-    const startTime = new Date(requestedDateTime)
-    const endTime = new Date(startTime.getTime() + 30 * 60000)
-    const dayStart = new Date(`${date}T00:00:00`)
-    const dayEnd = new Date(`${date}T23:59:59`)
+    const startTime = requestedDateTime
+    const endTime = new Date(startTime.getTime() + 30 * 60_000)
+    const { start: dayStart, end: dayEnd } = civilDayBounds(date)
 
     const existingAppointments = await prisma.appointment.findMany({
       where: { doctorId, scheduledAt: { gte: dayStart, lte: dayEnd }, status: { in: ['PENDING', 'CONFIRMED'] } },
@@ -254,7 +278,7 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
     const hasConflict =
       existingAppointments.some((apt) => {
         const aptStart = new Date(apt.scheduledAt)
-        const aptEnd = new Date(aptStart.getTime() + apt.duration * 60000)
+        const aptEnd = new Date(aptStart.getTime() + apt.duration * 60_000)
         return startTime < aptEnd && endTime > aptStart
       }) || busy.some((b) => startTime < b.end && endTime > b.start)
 
@@ -306,15 +330,15 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
       return
     }
 
-    const requestedDate = new Date(date)
-    const dayOfWeek = requestedDate.toLocaleDateString('en-US', { weekday: 'long' })
+    const requestedDate = civilSlotToDate(date, '12:00')
+    const dayOfWeek = civilWeekday(requestedDate)
     const availableFrom = doctor.availableFrom ?? '09:00'
     const availableTo = doctor.availableTo ?? '17:00'
     const override = getDateOverride(doctor.slotOverrides, date)
 
     // A per-date override fully replaces working days/hours for that date.
     if (!override) {
-      if (doctor.unavailableDates?.some((d) => new Date(d).toDateString() === requestedDate.toDateString())) {
+      if (doctor.unavailableDates?.includes(date)) {
         res.json({ success: true, available: false, message: 'Doctor is not available on this date', slots: [] })
         return
       }
@@ -476,11 +500,29 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
       })
     }
 
+    // Pre-create conflict guard: reject if slot is already taken.
+    const scheduledAt = civilSlotToDate(date, time)
+    const slotEnd = new Date(scheduledAt.getTime() + 30 * 60_000)
+    const { start: cbDayStart, end: cbDayEnd } = civilDayBounds(date)
+    const conflictAppts = await prisma.appointment.findMany({
+      where: { doctorId, scheduledAt: { gte: cbDayStart, lte: cbDayEnd }, status: { in: ['PENDING', 'CONFIRMED'] } },
+      select: { scheduledAt: true, duration: true },
+    })
+    const hasDoubleBook = conflictAppts.some((a) => {
+      const s = new Date(a.scheduledAt)
+      const e = new Date(s.getTime() + a.duration * 60_000)
+      return scheduledAt < e && slotEnd > s
+    })
+    if (hasDoubleBook) {
+      res.status(409).json({ success: false, message: 'This time slot is already booked. Please choose another time.' })
+      return
+    }
+
     const appointment = await prisma.appointment.create({
       data: {
         patientId: patient.id,
         doctorId,
-        scheduledAt: new Date(`${date}T${time}`),
+        scheduledAt,
         duration: parseInt(String(duration)),
         status: 'PENDING',
         source: 'CALLING_AGENT',

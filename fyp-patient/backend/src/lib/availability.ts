@@ -2,9 +2,17 @@
  * Shared availability helpers used both by the single-doctor slot endpoint
  * (getDoctorSlots) and by the doctors listing (getDoctors) for batch
  * soonest-slot computation.
+ *
+ * All civil date/time labels ("2026-06-28", "10:00") are computed in
+ * APPOINTMENT_TZ so that booked-time sets and slot lists use the same
+ * timezone regardless of the server's system clock/zone (typically UTC on
+ * cloud hosts like Railway).
  */
 
 const SLOT_MINUTES = 30
+
+/** The civil timezone used for all appointment date/slot labels. */
+export const APPOINTMENT_TZ = process.env.APPOINTMENT_TIMEZONE || 'Asia/Karachi'
 
 interface DoctorSchedule {
   availableFrom: string | null
@@ -19,33 +27,109 @@ interface DoctorSchedule {
 
 const pad = (n: number) => String(n).padStart(2, '0')
 
-/** Local civil date key "YYYY-MM-DD". */
+// ---------------------------------------------------------------------------
+// Civil timezone helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * UTC offset in ms for APPOINTMENT_TZ at a given instant.
+ * Uses Intl.DateTimeFormat.formatToParts to handle DST-safe conversion.
+ */
+function tzOffsetMs(at: Date): number {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: APPOINTMENT_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(at)
+  const get = (type: string) => parseInt(parts.find((p) => p.type === type)?.value ?? '0')
+  const civilMs = Date.UTC(
+    get('year'),
+    get('month') - 1,
+    get('day'),
+    get('hour'),
+    get('minute'),
+    get('second'),
+  )
+  return civilMs - at.getTime()
+}
+
+/** YYYY-MM-DD in APPOINTMENT_TZ. */
+export function civilDateKey(date: Date): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: APPOINTMENT_TZ }).format(date)
+}
+
+/** HH:MM in APPOINTMENT_TZ. */
+export function civilSlotLabel(date: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: APPOINTMENT_TZ,
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(date)
+  const h = parts.find((p) => p.type === 'hour')?.value ?? '00'
+  const m = parts.find((p) => p.type === 'minute')?.value ?? '00'
+  return `${h}:${m}`
+}
+
+/** UTC Date instant for a civil "YYYY-MM-DD" date + "HH:MM" slot in APPOINTMENT_TZ. */
+export function civilSlotToDate(dateStr: string, slot: string): Date {
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const [h, min] = slot.split(':').map(Number)
+  // Probe at noon UTC to stay clear of any DST transition boundary within the day.
+  const probe = new Date(Date.UTC(y, mo - 1, d, 12))
+  const offset = tzOffsetMs(probe)
+  const civilMidnightUtc = Date.UTC(y, mo - 1, d) - offset
+  return new Date(civilMidnightUtc + (h * 60 + min) * 60_000)
+}
+
+/** UTC {start, end} instants that bound a full civil day in APPOINTMENT_TZ. */
+export function civilDayBounds(dateStr: string): { start: Date; end: Date } {
+  const start = civilSlotToDate(dateStr, '00:00')
+  const [y, mo, d] = dateStr.split('-').map(Number)
+  const probe = new Date(Date.UTC(y, mo - 1, d, 12))
+  const offset = tzOffsetMs(probe)
+  const nextDayUtc = Date.UTC(y, mo - 1, d + 1) - offset
+  return { start, end: new Date(nextDayUtc - 1) }
+}
+
+/** Full weekday name in APPOINTMENT_TZ (e.g. "Monday"). */
+export function civilWeekday(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: APPOINTMENT_TZ,
+    weekday: 'long',
+  }).format(date)
+}
+
+// ---------------------------------------------------------------------------
+// Back-compat aliases (kept so existing callers that import these still work)
+// ---------------------------------------------------------------------------
+
+/** @deprecated Use civilDateKey. */
 export function localDateKey(d: Date): string {
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  return civilDateKey(d)
 }
 
-/** Parse a local date from "YYYY-MM-DD". */
+/** @deprecated Use civilSlotToDate. */
 export function parseLocalDate(dateStr: string): Date {
-  const [y, m, d] = dateStr.split('-').map(Number)
-  return new Date(y, m - 1, d)
+  return civilSlotToDate(dateStr, '00:00')
 }
 
-/** Combine a date key and "HH:MM" slot into a local Date. */
-export function slotStartAt(dateStr: string, slot: string): Date {
-  const [h, m] = slot.split(':').map(Number)
-  const d = parseLocalDate(dateStr)
-  d.setHours(h, m, 0, 0)
-  return d
-}
+// ---------------------------------------------------------------------------
+// Same-day advance-buffer helpers
+// ---------------------------------------------------------------------------
 
 /**
  * Earliest bookable slot start for same-day booking.
  * Adds minAdvanceSlots × 30 minutes to now, then rounds up to the next slot boundary.
  */
 export function earliestBookableAt(minAdvanceSlots: number, now: Date = new Date()): Date {
-  const slots = Math.max(0, minAdvanceSlots ?? 0)
-  const earliest = new Date(now.getTime() + slots * SLOT_MINUTES * 60_000)
-
+  const count = Math.max(0, minAdvanceSlots ?? 0)
+  const earliest = new Date(now.getTime() + count * SLOT_MINUTES * 60_000)
   const minutes = earliest.getMinutes()
   const remainder = minutes % SLOT_MINUTES
   if (remainder !== 0 || earliest.getSeconds() > 0 || earliest.getMilliseconds() > 0) {
@@ -53,7 +137,6 @@ export function earliestBookableAt(minAdvanceSlots: number, now: Date = new Date
   } else {
     earliest.setSeconds(0, 0)
   }
-
   return earliest
 }
 
@@ -64,10 +147,10 @@ export function isSlotTooSoon(
   minAdvanceSlots: number,
   now: Date = new Date(),
 ): boolean {
-  const todayKey = localDateKey(now)
-  if (dateStr < todayKey) return true
-  if (dateStr > todayKey) return false
-  return slotStartAt(dateStr, slot) < earliestBookableAt(minAdvanceSlots, now)
+  const today = civilDateKey(now)
+  if (dateStr < today) return true
+  if (dateStr > today) return false
+  return civilSlotToDate(dateStr, slot) < earliestBookableAt(minAdvanceSlots, now)
 }
 
 /** Remove past slots and same-day slots inside the advance buffer. */
@@ -77,17 +160,16 @@ export function filterBookableSlots(
   minAdvanceSlots: number,
   now: Date = new Date(),
 ): string[] {
-  const todayKey = localDateKey(now)
-  if (dateStr < todayKey) return []
-  if (dateStr > todayKey) return slots
+  const today = civilDateKey(now)
+  if (dateStr < today) return []
+  if (dateStr > today) return slots
   return slots.filter((slot) => !isSlotTooSoon(dateStr, slot, minAdvanceSlots, now))
 }
 
-/**
- * Reads the per-date slot override for a date, if any.
- * Returns the array of "HH:MM" available slots (possibly empty) when the date
- * has an explicit override, or null when no override exists for that date.
- */
+// ---------------------------------------------------------------------------
+// Per-date slot override helpers
+// ---------------------------------------------------------------------------
+
 export function getDateOverride(slotOverrides: unknown, dateStr: string): string[] | null {
   if (!slotOverrides || typeof slotOverrides !== 'object') return null
   const map = slotOverrides as Record<string, unknown>
@@ -97,14 +179,18 @@ export function getDateOverride(slotOverrides: unknown, dateStr: string): string
   return v.filter((x): x is string => typeof x === 'string')
 }
 
-/** Returns all 30-min slot strings for a given date, excluding booked ones. */
+// ---------------------------------------------------------------------------
+// Core slot generation
+// ---------------------------------------------------------------------------
+
+/** Returns bookable 30-min slot strings for a given date, excluding booked ones. */
 export function generateDaySlots(
   doctor: DoctorSchedule,
   date: Date,
   bookedTimes: Set<string>,
   now: Date = new Date(),
 ): string[] {
-  const dateStr = localDateKey(date)
+  const dateStr = civilDateKey(date)
   const minAdvance = doctor.minAdvanceSlots ?? 2
 
   let slots: string[]
@@ -114,7 +200,7 @@ export function generateDaySlots(
   if (override) {
     slots = [...override].sort().filter((s) => !bookedTimes.has(s))
   } else {
-    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+    const dayName = civilWeekday(date)
     if (!doctor.workingDays.includes(dayName)) return []
     if (doctor.unavailableDates?.includes(dateStr)) return []
 
@@ -141,11 +227,6 @@ export interface AvailabilityResult {
 /**
  * Find the soonest open slot for a single doctor given their pre-fetched
  * booked appointments.
- *
- * @param doctor        Doctor schedule fields
- * @param bookedMap     Map of date string (YYYY-MM-DD) → Set of booked HH:MM times
- * @param fromDate      Start scanning from this moment (usually now)
- * @param maxDays       How many days forward to scan (default 7)
  */
 export function findSoonestSlot(
   doctor: DoctorSchedule,
@@ -156,18 +237,18 @@ export function findSoonestSlot(
   const cutoff48h = new Date(fromDate.getTime() + 48 * 60 * 60 * 1000)
 
   for (let d = 0; d < maxDays; d++) {
-    const day = new Date(fromDate)
-    day.setDate(day.getDate() + d)
-    day.setHours(0, 0, 0, 0)
-
-    const dateStr = localDateKey(day)
+    // Step forward in civil days by advancing 24 h at a time in UTC.
+    const dayUtc = new Date(fromDate.getTime() + d * 24 * 60 * 60 * 1000)
+    const dateStr = civilDateKey(dayUtc)
     const booked = bookedMap.get(dateStr) ?? new Set<string>()
-    const slots = generateDaySlots(doctor, day, booked, fromDate)
+
+    // Use civil noon as the representative Date for weekday/date comparisons.
+    const dayRepr = civilSlotToDate(dateStr, '12:00')
+    const slots = generateDaySlots(doctor, dayRepr, booked, fromDate)
 
     for (const slot of slots) {
-      const slotDate = slotStartAt(dateStr, slot)
+      const slotDate = civilSlotToDate(dateStr, slot)
       if (slotDate <= fromDate) continue
-
       return {
         nextAvailableAt: slotDate,
         hasSlotWithin48h: slotDate <= cutoff48h,
@@ -179,14 +260,15 @@ export function findSoonestSlot(
 }
 
 /**
- * Build a bookedMap from a flat array of appointment scheduled times
- * (all for the same doctor).
+ * Build a bookedMap from appointment scheduled times.
+ * Keys: civil "YYYY-MM-DD" in APPOINTMENT_TZ.
+ * Values: sets of civil "HH:MM" slot labels.
  */
 export function buildBookedMap(scheduledAts: Date[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>()
   for (const dt of scheduledAts) {
-    const dateStr = localDateKey(dt)
-    const timeStr = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`
+    const dateStr = civilDateKey(dt)
+    const timeStr = civilSlotLabel(dt)
     if (!map.has(dateStr)) map.set(dateStr, new Set())
     map.get(dateStr)!.add(timeStr)
   }
@@ -201,12 +283,7 @@ export interface SlotValidationResult {
 /**
  * Validate that a requested scheduledAt time is a bookable slot.
  * Checks: not in past, same-day advance buffer, working day, not on
- * unavailableDates, within availableFrom/availableTo, slot not already booked.
- *
- * @param doctor             Doctor schedule fields
- * @param scheduledAt        The requested appointment time
- * @param bookedTimesForDay  Set of already-booked HH:MM strings for that day
- * @param excludeApptId      Optional appointment ID to exclude (for reschedule)
+ * unavailableDates, within availableFrom/availableTo, not already booked.
  */
 export function validateScheduledSlot(
   doctor: DoctorSchedule,
@@ -216,10 +293,9 @@ export function validateScheduledSlot(
 ): SlotValidationResult {
   const now = new Date()
   const minAdvance = doctor.minAdvanceSlots ?? 2
-  const dateStr = localDateKey(scheduledAt)
-  const slotHour = scheduledAt.getHours()
-  const slotMin = scheduledAt.getMinutes()
-  const slotStr = `${pad(slotHour)}:${pad(slotMin)}`
+  const dateStr = civilDateKey(scheduledAt)
+  const slotStr = civilSlotLabel(scheduledAt)
+  const [slotHour, slotMin] = slotStr.split(':').map(Number)
 
   if (scheduledAt <= now) {
     return { valid: false, error: 'Appointment time must be in the future.' }
@@ -248,7 +324,7 @@ export function validateScheduledSlot(
     return { valid: true }
   }
 
-  const dayName = scheduledAt.toLocaleDateString('en-US', { weekday: 'long' })
+  const dayName = civilWeekday(scheduledAt)
   if (!doctor.workingDays.includes(dayName)) {
     return { valid: false, error: `Doctor is not available on ${dayName}s.` }
   }

@@ -268,14 +268,14 @@ function AppointmentsContent() {
     return () => clearTimeout(timer);
   }, [doctorSearch, prefillDoctorId]);
 
-  async function handleBook() {
-    if (!doctorId || !selectedDate || !selectedSlot) {
+  async function handleBook(date: string, slot: string) {
+    if (!doctorId || !date || !slot) {
       toast.error("Please select a doctor, date and time slot");
       return;
     }
     setBooking(true);
     try {
-      const scheduledAt = new Date(`${selectedDate}T${selectedSlot}:00`).toISOString();
+      const scheduledAt = new Date(`${date}T${slot}:00`).toISOString();
       const res = await api.post("/appointments", { doctorId, scheduledAt, reason: reason || undefined });
       setLastBooked(res.data);
       toast.success("Appointment booked!");
@@ -457,7 +457,7 @@ function AppointmentsContent() {
                 onConfirm={(date, slot) => {
                   setSelectedDate(date);
                   setSelectedSlot(slot);
-                  handleBook();
+                  handleBook(date, slot);
                 }}
                 onCancel={() => setShowBooking(false)}
               />

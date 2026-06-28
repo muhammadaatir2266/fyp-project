@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
 import { haversineKm } from '../lib/geocode'
-import { findSoonestSlot, buildBookedMap, generateDaySlots, parseLocalDate, localDateKey } from '../lib/availability'
+import { findSoonestSlot, buildBookedMap, generateDaySlots, civilDateKey, civilSlotLabel, civilSlotToDate, civilDayBounds, civilWeekday } from '../lib/availability'
 import { batchDoctorMetrics } from '../lib/doctorMetrics'
 import { resolveSpecialty } from '../lib/specialty'
 import { getBusyIntervals, blockBusyIntoBookedTimes } from '../lib/google-calendar'
@@ -300,41 +300,38 @@ export const getDoctorSlots = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Doctor not found' })
     }
 
+    // Past dates have no bookable slots.
+    if (date < civilDateKey(new Date())) {
+      return res.json({ date, slots: [], reason: 'Cannot book appointments in the past' })
+    }
+
+    // Query appointments using civil day bounds in APPOINTMENT_TZ so the range
+    // is correct regardless of the server's system timezone.
+    const { start: dayStart, end: dayEnd } = civilDayBounds(date)
+
     const booked = await prisma.appointment.findMany({
       where: {
         doctorId: id,
-        scheduledAt: {
-          gte: new Date(`${date}T00:00:00`),
-          lt: new Date(`${date}T23:59:59`),
-        },
+        scheduledAt: { gte: dayStart, lte: dayEnd },
         status: { in: ['PENDING', 'CONFIRMED'] },
       },
       select: { scheduledAt: true },
     })
 
-    const bookedTimes = new Set(booked.map((a) => {
-      const d = new Date(a.scheduledAt)
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-    }))
+    // Build booked-times set using civil slot labels so "10:00 PKT" booked
+    // appointment is stored as "10:00", not the UTC hour.
+    const bookedTimes = new Set(booked.map((a) => civilSlotLabel(new Date(a.scheduledAt))))
 
-    const requestedDate = parseLocalDate(date)
-
-    // Past dates have no bookable slots.
-    if (date < localDateKey(new Date())) {
-      return res.json({ date, slots: [], reason: 'Cannot book appointments in the past' })
-    }
+    // Use civil noon as a stable representative Date for weekday/dateStr lookups.
+    const requestedDate = civilSlotToDate(date, '12:00')
 
     // Subtract the doctor's external Google Calendar busy times (fail-open).
-    const busy = await getBusyIntervals(
-      doctor,
-      new Date(`${date}T00:00:00`),
-      new Date(`${date}T23:59:59`),
-    )
-    blockBusyIntoBookedTimes(requestedDate, busy, bookedTimes)
+    const busy = await getBusyIntervals(doctor, dayStart, dayEnd)
+    blockBusyIntoBookedTimes(date, busy, bookedTimes)
 
     const slots = generateDaySlots(doctor, requestedDate, bookedTimes)
 
-    if (slots.length === 0 && !doctor.workingDays.includes(requestedDate.toLocaleDateString('en-US', { weekday: 'long' }))) {
+    if (slots.length === 0 && !doctor.workingDays.includes(civilWeekday(requestedDate))) {
       return res.json({ date, slots: [], reason: 'Doctor does not work on this day' })
     }
     if (slots.length === 0 && doctor.unavailableDates?.includes(date)) {
