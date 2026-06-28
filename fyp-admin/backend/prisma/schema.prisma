@@ -190,6 +190,11 @@ model Doctor {
   workingDays      String[]
   unavailableDates String[]  @default([])
 
+  // Per-date slot overrides (Calendly-style). Map of "YYYY-MM-DD" -> ["HH:MM", ...]
+  // available 30-min slots. A present date key fully replaces the weekly default
+  // for that date; an empty array means the whole day is unavailable.
+  slotOverrides    Json?
+
   // Google Calendar integration (availability sync). Refresh token is encrypted at rest.
   googleCalendarConnected Boolean @default(false)
   googleRefreshToken      String?

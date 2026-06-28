@@ -166,7 +166,7 @@ export function Calendar({ selectedDates = [], onDateSelect, className }: Calend
         </div>
         <div className="flex items-center gap-1.5">
           <div className="h-2.5 w-2.5 rounded bg-primary" />
-          <span>Blocked</span>
+          <span>Customized</span>
         </div>
       </div>
     </div>

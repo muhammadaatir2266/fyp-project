@@ -9,6 +9,22 @@ interface DoctorSchedule {
   availableTo: string | null
   workingDays: string[]
   unavailableDates: string[]
+  // Per-date Calendly-style overrides: { "YYYY-MM-DD": ["HH:MM", ...] }
+  slotOverrides?: unknown
+}
+
+/**
+ * Reads the per-date slot override for a date, if any.
+ * Returns the array of "HH:MM" available slots (possibly empty) when the date
+ * has an explicit override, or null when no override exists for that date.
+ */
+export function getDateOverride(slotOverrides: unknown, dateStr: string): string[] | null {
+  if (!slotOverrides || typeof slotOverrides !== 'object') return null
+  const map = slotOverrides as Record<string, unknown>
+  if (!Object.prototype.hasOwnProperty.call(map, dateStr)) return null
+  const v = map[dateStr]
+  if (!Array.isArray(v)) return null
+  return v.filter((x): x is string => typeof x === 'string')
 }
 
 /** Returns all 30-min slot strings for a given date, excluding booked ones. */
@@ -17,9 +33,15 @@ export function generateDaySlots(
   date: Date,
   bookedTimes: Set<string>,
 ): string[] {
-  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
   const dateStr = date.toISOString().split('T')[0]
 
+  // A per-date override fully replaces the weekly default for that date.
+  const override = getDateOverride(doctor.slotOverrides, dateStr)
+  if (override) {
+    return [...override].sort().filter((s) => !bookedTimes.has(s))
+  }
+
+  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
   if (!doctor.workingDays.includes(dayName)) return []
   if (doctor.unavailableDates?.includes(dateStr)) return []
 
@@ -125,20 +147,34 @@ export function validateScheduledSlot(
     return { valid: false, error: 'Appointment time must be in the future.' }
   }
 
+  const dateStr = scheduledAt.toISOString().split('T')[0]
+  const slotHour = scheduledAt.getHours()
+  const slotMin = scheduledAt.getMinutes()
+  const slotStr = `${String(slotHour).padStart(2, '0')}:${String(slotMin).padStart(2, '0')}`
+
+  // A per-date override fully replaces the weekly default for that date.
+  const override = getDateOverride(doctor.slotOverrides, dateStr)
+  if (override) {
+    if (!override.includes(slotStr)) {
+      return { valid: false, error: 'This time is not available on the selected date.' }
+    }
+    if (bookedTimesForDay.has(slotStr)) {
+      return { valid: false, error: 'This slot is already booked.' }
+    }
+    return { valid: true }
+  }
+
   const dayName = scheduledAt.toLocaleDateString('en-US', { weekday: 'long' })
   if (!doctor.workingDays.includes(dayName)) {
     return { valid: false, error: `Doctor is not available on ${dayName}s.` }
   }
 
-  const dateStr = scheduledAt.toISOString().split('T')[0]
   if (doctor.unavailableDates?.includes(dateStr)) {
     return { valid: false, error: 'Doctor is unavailable on this date.' }
   }
 
   const fromHour = parseInt((doctor.availableFrom ?? '09:00').split(':')[0])
   const toHour = parseInt((doctor.availableTo ?? '17:00').split(':')[0])
-  const slotHour = scheduledAt.getHours()
-  const slotMin = scheduledAt.getMinutes()
 
   if (slotHour < fromHour || slotHour >= toHour) {
     return {
@@ -151,7 +187,6 @@ export function validateScheduledSlot(
     return { valid: false, error: 'Slots must be on the hour or half-hour.' }
   }
 
-  const slotStr = `${String(slotHour).padStart(2, '0')}:${String(slotMin).padStart(2, '0')}`
   if (bookedTimesForDay.has(slotStr)) {
     return { valid: false, error: 'This slot is already booked.' }
   }

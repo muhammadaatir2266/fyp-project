@@ -9,7 +9,13 @@ export const getAvailability = async (req: Request, res: Response): Promise<void
 
     const doctor = await prisma.doctor.findUnique({
       where: { id: doctorId },
-      select: { availableFrom: true, availableTo: true, workingDays: true, unavailableDates: true },
+      select: {
+        availableFrom: true,
+        availableTo: true,
+        workingDays: true,
+        unavailableDates: true,
+        slotOverrides: true,
+      },
     })
 
     res.json(doctor)
@@ -22,12 +28,14 @@ export const getAvailability = async (req: Request, res: Response): Promise<void
 export const updateAvailability = async (req: Request, res: Response): Promise<void> => {
   try {
     const doctorId = req.doctorId!
-    const { availableFrom, availableTo, workingDays, unavailableDates } = req.body as {
-      availableFrom?: string
-      availableTo?: string
-      workingDays?: string[]
-      unavailableDates?: string[]
-    }
+    const { availableFrom, availableTo, workingDays, unavailableDates, slotOverrides } =
+      req.body as {
+        availableFrom?: string
+        availableTo?: string
+        workingDays?: string[]
+        unavailableDates?: string[]
+        slotOverrides?: Record<string, string[]>
+      }
 
     const doctor = await prisma.doctor.update({
       where: { id: doctorId },
@@ -36,6 +44,7 @@ export const updateAvailability = async (req: Request, res: Response): Promise<v
         availableTo,
         workingDays,
         ...(unavailableDates && { unavailableDates }),
+        ...(slotOverrides !== undefined && { slotOverrides }),
       },
     })
 

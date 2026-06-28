@@ -8,17 +8,28 @@ import {
   type BusyInterval,
 } from '../lib/google-calendar'
 
+/**
+ * Reads the per-date slot override for a date, if any. Returns the array of
+ * "HH:MM" available slots (possibly empty) when the date has an explicit
+ * override, or null when no override exists for that date.
+ */
+function getDateOverride(slotOverrides: unknown, dateStr: string): string[] | null {
+  if (!slotOverrides || typeof slotOverrides !== 'object') return null
+  const map = slotOverrides as Record<string, unknown>
+  if (!Object.prototype.hasOwnProperty.call(map, dateStr)) return null
+  const v = map[dateStr]
+  if (!Array.isArray(v)) return null
+  return v.filter((x): x is string => typeof x === 'string')
+}
+
 async function getSuggestedTimeSlots(
   doctorId: string,
   date: string,
   availableFrom: string,
   availableTo: string,
-  googleDoctor?: GoogleDoctor
+  googleDoctor?: GoogleDoctor,
+  slotOverrides?: unknown
 ): Promise<string[]> {
-  const startHour = parseInt(availableFrom.split(':')[0])
-  const startMinute = parseInt(availableFrom.split(':')[1])
-  const endHour = parseInt(availableTo.split(':')[0])
-
   const dayStart = new Date(`${date}T00:00:00`)
   const dayEnd = new Date(`${date}T23:59:59`)
 
@@ -36,26 +47,40 @@ async function getSuggestedTimeSlots(
     ? await getBusyIntervals(googleDoctor, dayStart, dayEnd)
     : []
 
-  const slots: string[] = []
-
-  for (let hour = startHour; hour < endHour; hour++) {
-    for (const minute of [0, 30]) {
-      if (hour === startHour && minute < startMinute) continue
-
-      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
-      const slotStart = new Date(`${date}T${timeString}`)
-      const slotEnd = new Date(slotStart.getTime() + 30 * 60000)
-
-      const hasConflict = existingAppointments.some((apt: { scheduledAt: Date; duration: number }) => {
-        const aptStart = new Date(apt.scheduledAt)
-        const aptEnd = new Date(aptStart.getTime() + apt.duration * 60000)
-        return slotStart < aptEnd && slotEnd > aptStart
-      })
-
-      const hasBusyConflict = busy.some((b) => slotStart < b.end && slotEnd > b.start)
-
-      if (!hasConflict && !hasBusyConflict) slots.push(timeString)
+  // Candidate slots: a per-date override fully replaces the weekly default.
+  const override = getDateOverride(slotOverrides, date)
+  let candidateTimes: string[]
+  if (override) {
+    candidateTimes = [...override].sort()
+  } else {
+    const startHour = parseInt(availableFrom.split(':')[0])
+    const startMinute = parseInt(availableFrom.split(':')[1])
+    const endHour = parseInt(availableTo.split(':')[0])
+    candidateTimes = []
+    for (let hour = startHour; hour < endHour; hour++) {
+      for (const minute of [0, 30]) {
+        if (hour === startHour && minute < startMinute) continue
+        candidateTimes.push(
+          `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`
+        )
+      }
     }
+  }
+
+  const slots: string[] = []
+  for (const timeString of candidateTimes) {
+    const slotStart = new Date(`${date}T${timeString}`)
+    const slotEnd = new Date(slotStart.getTime() + 30 * 60000)
+
+    const hasConflict = existingAppointments.some((apt: { scheduledAt: Date; duration: number }) => {
+      const aptStart = new Date(apt.scheduledAt)
+      const aptEnd = new Date(aptStart.getTime() + apt.duration * 60000)
+      return slotStart < aptEnd && slotEnd > aptStart
+    })
+
+    const hasBusyConflict = busy.some((b) => slotStart < b.end && slotEnd > b.start)
+
+    if (!hasConflict && !hasBusyConflict) slots.push(timeString)
   }
 
   return slots.slice(0, 10)
@@ -80,7 +105,7 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
       select: {
         id: true, firstName: true, lastName: true,
         availableFrom: true, availableTo: true,
-        workingDays: true, unavailableDates: true, isActive: true,
+        workingDays: true, unavailableDates: true, isActive: true, slotOverrides: true,
         googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
         specialty: { select: { name: true } },
       },
@@ -109,36 +134,50 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
       return
     }
 
-    if (doctor.unavailableDates?.some((d) => new Date(d).toDateString() === requestedDate.toDateString())) {
-      res.json({
-        success: false, available: false,
-        message: 'Doctor is not available on this date',
-        doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
-      })
-      return
-    }
-
-    if (!doctor.workingDays?.includes(dayOfWeek)) {
-      res.json({
-        success: false, available: false,
-        message: `Doctor does not work on ${dayOfWeek}`,
-        doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
-        workingDays: doctor.workingDays ?? [],
-      })
-      return
-    }
-
     const availableFrom = doctor.availableFrom ?? '09:00'
     const availableTo = doctor.availableTo ?? '17:00'
+    const override = getDateOverride(doctor.slotOverrides, date)
 
-    if (time < availableFrom || time >= availableTo) {
-      res.json({
-        success: false, available: false,
-        message: "Requested time is outside doctor's working hours",
-        doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
-        workingHours: { from: availableFrom, to: availableTo },
-      })
-      return
+    if (override) {
+      // A per-date override fully replaces working days/hours for that date.
+      if (!override.includes(time)) {
+        res.json({
+          success: false, available: false,
+          message: 'Requested time is not available on this date',
+          doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
+          suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides),
+        })
+        return
+      }
+    } else {
+      if (doctor.unavailableDates?.some((d) => new Date(d).toDateString() === requestedDate.toDateString())) {
+        res.json({
+          success: false, available: false,
+          message: 'Doctor is not available on this date',
+          doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
+        })
+        return
+      }
+
+      if (!doctor.workingDays?.includes(dayOfWeek)) {
+        res.json({
+          success: false, available: false,
+          message: `Doctor does not work on ${dayOfWeek}`,
+          doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
+          workingDays: doctor.workingDays ?? [],
+        })
+        return
+      }
+
+      if (time < availableFrom || time >= availableTo) {
+        res.json({
+          success: false, available: false,
+          message: "Requested time is outside doctor's working hours",
+          doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
+          workingHours: { from: availableFrom, to: availableTo },
+        })
+        return
+      }
     }
 
     const startTime = new Date(requestedDateTime)
@@ -166,7 +205,7 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
         success: false, available: false,
         message: 'This time slot is already booked',
         doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
-        suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor),
+        suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides),
       })
       return
     }
@@ -198,7 +237,7 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
       select: {
         id: true, firstName: true, lastName: true,
         availableFrom: true, availableTo: true,
-        workingDays: true, unavailableDates: true, isActive: true,
+        workingDays: true, unavailableDates: true, isActive: true, slotOverrides: true,
         googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
         specialty: { select: { name: true } },
       },
@@ -211,24 +250,28 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
 
     const requestedDate = new Date(date)
     const dayOfWeek = requestedDate.toLocaleDateString('en-US', { weekday: 'long' })
-
-    if (doctor.unavailableDates?.some((d) => new Date(d).toDateString() === requestedDate.toDateString())) {
-      res.json({ success: true, available: false, message: 'Doctor is not available on this date', slots: [] })
-      return
-    }
-
-    if (!doctor.workingDays?.includes(dayOfWeek)) {
-      res.json({
-        success: true, available: false,
-        message: `Doctor does not work on ${dayOfWeek}`,
-        slots: [], workingDays: doctor.workingDays ?? [],
-      })
-      return
-    }
-
     const availableFrom = doctor.availableFrom ?? '09:00'
     const availableTo = doctor.availableTo ?? '17:00'
-    const slots = await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor)
+    const override = getDateOverride(doctor.slotOverrides, date)
+
+    // A per-date override fully replaces working days/hours for that date.
+    if (!override) {
+      if (doctor.unavailableDates?.some((d) => new Date(d).toDateString() === requestedDate.toDateString())) {
+        res.json({ success: true, available: false, message: 'Doctor is not available on this date', slots: [] })
+        return
+      }
+
+      if (!doctor.workingDays?.includes(dayOfWeek)) {
+        res.json({
+          success: true, available: false,
+          message: `Doctor does not work on ${dayOfWeek}`,
+          slots: [], workingDays: doctor.workingDays ?? [],
+        })
+        return
+      }
+    }
+
+    const slots = await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides)
 
     res.json({
       success: true,

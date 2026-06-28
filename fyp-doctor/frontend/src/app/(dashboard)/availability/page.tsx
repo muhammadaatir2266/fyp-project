@@ -1,7 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Clock, Save, Calendar as CalendarIcon, CheckCircle2, XCircle, Info, Link2, Unlink } from "lucide-react";
+import {
+  Clock,
+  Save,
+  Calendar as CalendarIcon,
+  CheckCircle2,
+  XCircle,
+  Info,
+  Link2,
+  Unlink,
+  CalendarClock,
+  RotateCcw,
+  Sun,
+  Moon,
+} from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,11 +34,32 @@ const DAYS_OF_WEEK = [
   { name: "Sunday", short: "Sun" },
 ];
 
+const pad = (n: number) => String(n).padStart(2, "0");
+
+// Full-day 30-minute grid of slot labels ("00:00" … "23:30").
+const ALL_SLOTS: string[] = (() => {
+  const slots: string[] = [];
+  for (let h = 0; h < 24; h++) {
+    slots.push(`${pad(h)}:00`, `${pad(h)}:30`);
+  }
+  return slots;
+})();
+
+// Local civil date key "YYYY-MM-DD" (avoids UTC day-shift from toISOString()).
+const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseKey = (k: string) => {
+  const [y, m, d] = k.split("-").map(Number);
+  return new Date(y, m - 1, d);
+};
+
+type SlotOverrides = Record<string, string[]>;
+
 export default function AvailabilityPage() {
   const [availableFrom, setAvailableFrom] = useState("09:00");
   const [availableTo, setAvailableTo] = useState("17:00");
   const [workingDays, setWorkingDays] = useState<string[]>([]);
-  const [unavailableDates, setUnavailableDates] = useState<Date[]>([]);
+  const [slotOverrides, setSlotOverrides] = useState<SlotOverrides>({});
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -51,7 +85,6 @@ export default function AvailabilityPage() {
         setMessage("Failed to connect Google Calendar. Please try again.");
       }
       setTimeout(() => setMessage(""), 4000);
-      // Strip the query param so a refresh doesn't re-trigger the message.
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -102,10 +135,16 @@ export default function AvailabilityPage() {
       setAvailableFrom(data.availableFrom || "09:00");
       setAvailableTo(data.availableTo || "17:00");
       setWorkingDays(data.workingDays || []);
-      
-      // Parse unavailable dates if they exist
-      if (data.unavailableDates) {
-        setUnavailableDates(data.unavailableDates.map((d: string) => new Date(d)));
+
+      // slotOverrides is stored as JSON: { "YYYY-MM-DD": ["HH:MM", ...] }
+      if (data.slotOverrides && typeof data.slotOverrides === "object") {
+        const cleaned: SlotOverrides = {};
+        for (const [key, value] of Object.entries(data.slotOverrides)) {
+          if (Array.isArray(value)) {
+            cleaned[key] = (value as unknown[]).filter((v): v is string => typeof v === "string");
+          }
+        }
+        setSlotOverrides(cleaned);
       }
     } catch (error) {
       console.error("Failed to fetch availability:", error);
@@ -123,7 +162,7 @@ export default function AvailabilityPage() {
         availableFrom,
         availableTo,
         workingDays,
-        unavailableDates: unavailableDates.map(d => d.toISOString()),
+        slotOverrides,
       });
       setMessage("Availability updated successfully!");
       setTimeout(() => setMessage(""), 3000);
@@ -141,50 +180,63 @@ export default function AvailabilityPage() {
     );
   };
 
-  const handleDateSelect = (date: Date) => {
-    setUnavailableDates((prev) => {
-      const exists = prev.some(
-        (d) =>
-          d.getDate() === date.getDate() &&
-          d.getMonth() === date.getMonth() &&
-          d.getFullYear() === date.getFullYear()
-      );
+  // Default slots for a date derived from the weekly working hours/days.
+  const defaultSlotsForDate = (date: Date): string[] => {
+    const weekday = date.toLocaleDateString("en-US", { weekday: "long" });
+    if (!workingDays.includes(weekday)) return [];
+    return hoursSlots();
+  };
 
-      if (exists) {
-        return prev.filter(
-          (d) =>
-            !(
-              d.getDate() === date.getDate() &&
-              d.getMonth() === date.getMonth() &&
-              d.getFullYear() === date.getFullYear()
-            )
-        );
-      } else {
-        return [...prev, date];
-      }
+  // 30-minute slots between the configured working hours (weekday-agnostic).
+  const hoursSlots = (): string[] => {
+    const fromH = parseInt(availableFrom.split(":")[0]);
+    const toH = parseInt(availableTo.split(":")[0]);
+    const out: string[] = [];
+    for (let h = fromH; h < toH; h++) {
+      out.push(`${pad(h)}:00`, `${pad(h)}:30`);
+    }
+    return out;
+  };
+
+  const editingKey = selectedDate ? dateKey(selectedDate) : null;
+  const isCustomized = editingKey ? editingKey in slotOverrides : false;
+  const editingSlots: string[] = editingKey
+    ? slotOverrides[editingKey] ?? defaultSlotsForDate(selectedDate as Date)
+    : [];
+  const editingSet = new Set(editingSlots);
+
+  const toggleSlot = (slot: string) => {
+    if (!editingKey || !selectedDate) return;
+    setSlotOverrides((prev) => {
+      const base = prev[editingKey] ?? defaultSlotsForDate(selectedDate);
+      const set = new Set(base);
+      if (set.has(slot)) set.delete(slot);
+      else set.add(slot);
+      return { ...prev, [editingKey]: Array.from(set).sort() };
     });
   };
 
-  const removeUnavailableDate = (date: Date) => {
-    setUnavailableDates((prev) =>
-      prev.filter(
-        (d) =>
-          !(
-            d.getDate() === date.getDate() &&
-            d.getMonth() === date.getMonth() &&
-            d.getFullYear() === date.getFullYear()
-          )
-      )
-    );
+  const setDateSlots = (slots: string[]) => {
+    if (!editingKey) return;
+    setSlotOverrides((prev) => ({ ...prev, [editingKey]: [...slots].sort() }));
   };
 
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
+  const resetDateToDefault = (key: string) => {
+    setSlotOverrides((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
     });
   };
+
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+  const customizedKeys = Object.keys(slotOverrides).sort();
+  const highlightDates = [
+    ...customizedKeys.map(parseKey),
+    ...(selectedDate ? [selectedDate] : []),
+  ];
 
   if (loading) {
     return (
@@ -224,7 +276,7 @@ export default function AvailabilityPage() {
       >
         <h1 className="text-3xl font-bold tracking-tight">Availability Management</h1>
         <p className="text-muted-foreground mt-1">
-          Configure your working hours, available days, and block specific dates
+          Set your weekly working hours, then fine-tune individual time slots for specific dates
         </p>
       </motion.div>
 
@@ -252,9 +304,7 @@ export default function AvailabilityPage() {
                   )}
                   <p
                     className={`font-medium ${
-                      message.includes("success")
-                        ? "text-green-600"
-                        : "text-destructive"
+                      message.includes("success") ? "text-green-600" : "text-destructive"
                     }`}
                   >
                     {message}
@@ -279,11 +329,9 @@ export default function AvailabilityPage() {
                 <div className="p-2 rounded-lg bg-primary/10">
                   <Clock className="h-5 w-5 text-primary" />
                 </div>
-                <CardTitle>Working Hours</CardTitle>
+                <CardTitle>Default Working Hours</CardTitle>
               </div>
-              <CardDescription>
-                Set your daily consultation hours
-              </CardDescription>
+              <CardDescription>Your standard daily consultation hours</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="space-y-4">
@@ -292,15 +340,13 @@ export default function AvailabilityPage() {
                     Start Time
                     <Badge variant="outline" className="text-xs">From</Badge>
                   </label>
-                  <div className="relative">
-                    <Input
-                      id="from"
-                      type="time"
-                      value={availableFrom}
-                      onChange={(e) => setAvailableFrom(e.target.value)}
-                      className="text-lg font-medium h-12 pl-4 pr-4 hover:border-primary/50 focus:border-primary transition-colors"
-                    />
-                  </div>
+                  <Input
+                    id="from"
+                    type="time"
+                    value={availableFrom}
+                    onChange={(e) => setAvailableFrom(e.target.value)}
+                    className="text-lg font-medium h-12 pl-4 pr-4 hover:border-primary/50 focus:border-primary transition-colors"
+                  />
                 </div>
 
                 <div className="flex items-center justify-center">
@@ -314,15 +360,13 @@ export default function AvailabilityPage() {
                     End Time
                     <Badge variant="outline" className="text-xs">To</Badge>
                   </label>
-                  <div className="relative">
-                    <Input
-                      id="to"
-                      type="time"
-                      value={availableTo}
-                      onChange={(e) => setAvailableTo(e.target.value)}
-                      className="text-lg font-medium h-12 pl-4 pr-4 hover:border-primary/50 focus:border-primary transition-colors"
-                    />
-                  </div>
+                  <Input
+                    id="to"
+                    type="time"
+                    value={availableTo}
+                    onChange={(e) => setAvailableTo(e.target.value)}
+                    className="text-lg font-medium h-12 pl-4 pr-4 hover:border-primary/50 focus:border-primary transition-colors"
+                  />
                 </div>
               </div>
 
@@ -330,7 +374,7 @@ export default function AvailabilityPage() {
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
                   <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-blue-600">
-                    These hours will apply to all your selected working days
+                    These hours apply to every working day, unless you customize a specific date below.
                   </p>
                 </div>
               </div>
@@ -352,79 +396,41 @@ export default function AvailabilityPage() {
                 </div>
                 <CardTitle>Working Days</CardTitle>
               </div>
-              <CardDescription>
-                Select the days you're available for consultations
-              </CardDescription>
+              <CardDescription>The days you&apos;re available by default each week</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {DAYS_OF_WEEK.map((day, index) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {DAYS_OF_WEEK.map((day) => {
                   const isAvailable = workingDays.includes(day.name);
                   return (
-                    <motion.div
+                    <button
                       key={day.name}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.3, delay: index * 0.05 }}
-                      whileHover={{ scale: 1.02, x: 4 }}
-                      className="group"
+                      type="button"
+                      onClick={() => toggleDay(day.name)}
+                      className={`flex items-center justify-between p-3 rounded-xl border-2 transition-all duration-200 ${
+                        isAvailable
+                          ? "border-primary/50 bg-primary/5 shadow-sm"
+                          : "border-border hover:border-primary/30 hover:bg-muted/50"
+                      }`}
                     >
-                      <div
-                        className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-300 cursor-pointer ${
-                          isAvailable
-                            ? "border-primary/50 bg-primary/5 shadow-sm"
-                            : "border-border hover:border-primary/30 hover:bg-muted/50"
-                        }`}
-                        onClick={() => toggleDay(day.name)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-10 h-10 rounded-lg flex items-center justify-center font-semibold text-sm transition-all duration-300 ${
-                              isAvailable
-                                ? "bg-primary text-primary-foreground shadow-md"
-                                : "bg-muted text-muted-foreground group-hover:bg-primary/10"
-                            }`}
-                          >
-                            {day.short}
-                          </div>
-                          <span className="font-medium">{day.name}</span>
-                        </div>
-                        <motion.div
-                          initial={false}
-                          animate={{
-                            scale: isAvailable ? 1 : 0.9,
-                            opacity: isAvailable ? 1 : 0.5,
-                          }}
-                          transition={{ duration: 0.2 }}
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center font-semibold text-xs ${
+                            isAvailable
+                              ? "bg-primary text-primary-foreground shadow-md"
+                              : "bg-muted text-muted-foreground"
+                          }`}
                         >
-                          <Button
-                            size="sm"
-                            variant={isAvailable ? "default" : "outline"}
-                            className={`min-w-[100px] transition-all duration-300 ${
-                              isAvailable
-                                ? "shadow-md"
-                                : "hover:border-primary/50"
-                            }`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleDay(day.name);
-                            }}
-                          >
-                            {isAvailable ? (
-                              <span className="flex items-center gap-1">
-                                <CheckCircle2 className="h-3 w-3" />
-                                Available
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1">
-                                <XCircle className="h-3 w-3" />
-                                Unavailable
-                              </span>
-                            )}
-                          </Button>
-                        </motion.div>
+                          {day.short}
+                        </div>
+                        <span className="font-medium text-sm">{day.name}</span>
                       </div>
-                    </motion.div>
+                      {isAvailable ? (
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                      ) : (
+                        <XCircle className="h-4 w-4 text-muted-foreground" />
+                      )}
+                    </button>
                   );
                 })}
               </div>
@@ -442,7 +448,7 @@ export default function AvailabilityPage() {
         </motion.div>
       </div>
 
-      {/* Calendar Section */}
+      {/* Date-specific Slots Section */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -452,87 +458,181 @@ export default function AvailabilityPage() {
           <CardHeader className="space-y-1">
             <div className="flex items-center gap-2">
               <div className="p-2 rounded-lg bg-primary/10">
-                <CalendarIcon className="h-5 w-5 text-primary" />
+                <CalendarClock className="h-5 w-5 text-primary" />
               </div>
-              <CardTitle>Block Specific Dates</CardTitle>
+              <CardTitle>Date-specific Slots</CardTitle>
             </div>
             <CardDescription>
-              Mark dates when you'll be unavailable (holidays, vacations, special days)
+              Pick a date, then turn individual time slots on or off. A customized date overrides your
+              default hours for that day only.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid gap-6 md:grid-cols-2">
-              <div className="border rounded-lg bg-muted/20 max-w-md mx-auto w-full">
-                <Calendar
-                  selectedDates={unavailableDates}
-                  onDateSelect={handleDateSelect}
-                />
-              </div>
-
+            <div className="grid gap-6 lg:grid-cols-[auto_1fr]">
+              {/* Calendar + customized list */}
               <div className="space-y-4">
+                <div className="border rounded-lg bg-muted/20 max-w-sm mx-auto w-full">
+                  <Calendar selectedDates={highlightDates} onDateSelect={(d) => setSelectedDate(d)} />
+                </div>
+
                 <div>
                   <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                    <Badge variant="destructive" className="h-5">
-                      {unavailableDates.length}
+                    <Badge variant="secondary" className="h-5">
+                      {customizedKeys.length}
                     </Badge>
-                    Blocked Dates
+                    Customized Dates
                   </h4>
-                  {unavailableDates.length === 0 ? (
-                    <div className="p-6 text-center border-2 border-dashed rounded-lg">
-                      <CalendarIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        No dates blocked yet
-                      </p>
+                  {customizedKeys.length === 0 ? (
+                    <div className="p-5 text-center border-2 border-dashed rounded-lg">
+                      <CalendarClock className="h-7 w-7 text-muted-foreground mx-auto mb-2" />
+                      <p className="text-sm text-muted-foreground">No customized dates yet</p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        Click on calendar dates to block them
+                        Pick a date on the calendar to edit its slots
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-[320px] overflow-y-auto pr-2">
+                    <div className="space-y-2 max-h-[260px] overflow-y-auto pr-1">
                       <AnimatePresence>
-                        {unavailableDates
-                          .sort((a, b) => a.getTime() - b.getTime())
-                          .map((date, index) => (
+                        {customizedKeys.map((key) => {
+                          const date = parseKey(key);
+                          const count = slotOverrides[key].length;
+                          return (
                             <motion.div
-                              key={date.toISOString()}
+                              key={key}
                               initial={{ opacity: 0, x: 20 }}
                               animate={{ opacity: 1, x: 0 }}
                               exit={{ opacity: 0, x: -20 }}
-                              transition={{ duration: 0.2, delay: index * 0.03 }}
-                              whileHover={{ scale: 1.02 }}
-                              className="flex items-center justify-between p-3 rounded-lg border bg-card hover:border-primary/50 transition-all group"
+                              transition={{ duration: 0.2 }}
+                              className={`flex items-center justify-between p-2.5 rounded-lg border bg-card transition-all group cursor-pointer ${
+                                editingKey === key ? "border-primary/60 ring-1 ring-primary/30" : "hover:border-primary/40"
+                              }`}
+                              onClick={() => setSelectedDate(date)}
                             >
                               <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                                  <span className="text-lg font-bold text-destructive">
+                                <div
+                                  className={`w-9 h-9 rounded-lg flex items-center justify-center ${
+                                    count === 0 ? "bg-destructive/10" : "bg-primary/10"
+                                  }`}
+                                >
+                                  <span
+                                    className={`text-base font-bold ${
+                                      count === 0 ? "text-destructive" : "text-primary"
+                                    }`}
+                                  >
                                     {date.getDate()}
                                   </span>
                                 </div>
                                 <div>
-                                  <p className="text-sm font-medium">
-                                    {formatDate(date)}
-                                  </p>
+                                  <p className="text-sm font-medium">{formatDate(date)}</p>
                                   <p className="text-xs text-muted-foreground">
-                                    {date.toLocaleDateString("en-US", {
-                                      weekday: "long",
-                                    })}
+                                    {count === 0 ? "Day off" : `${count} slot${count !== 1 ? "s" : ""}`}
                                   </p>
                                 </div>
                               </div>
                               <Button
                                 size="sm"
                                 variant="ghost"
-                                onClick={() => removeUnavailableDate(date)}
+                                title="Reset to default hours"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  resetDateToDefault(key);
+                                }}
                                 className="opacity-0 group-hover:opacity-100 transition-opacity"
                               >
-                                <XCircle className="h-4 w-4" />
+                                <RotateCcw className="h-4 w-4" />
                               </Button>
                             </motion.div>
-                          ))}
+                          );
+                        })}
                       </AnimatePresence>
                     </div>
                   )}
                 </div>
+              </div>
+
+              {/* Slot editor */}
+              <div className="border rounded-xl p-4 bg-muted/10">
+                {!selectedDate ? (
+                  <div className="h-full min-h-[280px] flex flex-col items-center justify-center text-center">
+                    <CalendarClock className="h-10 w-10 text-muted-foreground/60 mb-3" />
+                    <p className="text-sm font-medium">Select a date to edit its slots</p>
+                    <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                      Click any date on the calendar. Slots default to your working hours and can be
+                      toggled individually.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">
+                          {selectedDate.toLocaleDateString("en-US", {
+                            weekday: "long",
+                            month: "long",
+                            day: "numeric",
+                          })}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {isCustomized ? (
+                            <span className="text-primary font-medium">
+                              Customized · {editingSlots.length} slot{editingSlots.length !== 1 ? "s" : ""} available
+                            </span>
+                          ) : (
+                            "Following default working hours"
+                          )}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button size="sm" variant="outline" onClick={() => setDateSlots(hoursSlots())}>
+                          <Sun className="h-3.5 w-3.5 mr-1.5" />
+                          Working hours
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setDateSlots([])}>
+                          <Moon className="h-3.5 w-3.5 mr-1.5" />
+                          Day off
+                        </Button>
+                        {isCustomized && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => editingKey && resetDateToDefault(editingKey)}
+                          >
+                            <RotateCcw className="h-3.5 w-3.5 mr-1.5" />
+                            Reset
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5">
+                      {ALL_SLOTS.map((slot) => {
+                        const active = editingSet.has(slot);
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => toggleSlot(slot)}
+                            className={`px-1 py-1.5 rounded-md text-xs font-medium border transition-all ${
+                              active
+                                ? "bg-primary text-primary-foreground border-primary shadow-sm hover:bg-primary/90"
+                                : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                            }`}
+                          >
+                            {slot}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
+                      <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                      <p className="text-xs text-blue-600">
+                        Green slots are bookable. Turn all slots off to mark the whole day as
+                        unavailable. Remember to save your changes.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </CardContent>
