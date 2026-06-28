@@ -39,7 +39,7 @@ interface SidebarProps {
 export function Sidebar({
   className,
   adminName = "Admin User",
-  adminEmail = "admin@example.com",
+  adminEmail = "admin@mediassist.com",
   onLinkClick,
 }: SidebarProps) {
   const pathname = usePathname();

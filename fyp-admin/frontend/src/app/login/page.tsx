@@ -37,7 +37,7 @@ export default function LoginPage() {
   };
 
   const fillDemoCredentials = () => {
-    setEmail('admin@example.com');
+    setEmail('admin@mediassist.com');
     setPassword('admin123');
   };
 
@@ -106,7 +106,7 @@ export default function LoginPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="admin@example.com"
+                    placeholder="admin@mediassist.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -174,7 +174,7 @@ export default function LoginPage() {
                 <span className="font-medium text-primary text-sm">Use Demo Credentials</span>
               </div>
               <div className="mt-1 text-xs text-muted-foreground font-mono">
-                admin@example.com / admin123
+                admin@mediassist.com / admin123
               </div>
             </button>
           </CardContent>
