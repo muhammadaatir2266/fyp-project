@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from 'express'
+import { createHash, timingSafeEqual } from 'crypto'
 import { ApiToken } from '@prisma/client'
 import prisma from '../config/database'
 
@@ -9,6 +10,10 @@ declare global {
       tokenId?: string
     }
   }
+}
+
+function hashToken(raw: string): string {
+  return createHash('sha256').update(raw).digest('hex')
 }
 
 const apiTokenMiddleware = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
@@ -23,12 +28,22 @@ const apiTokenMiddleware = async (req: Request, res: Response, next: NextFunctio
       return
     }
 
-    const token = authHeader.split(' ')[1]
+    const raw = authHeader.split(' ')[1]
+    const hash = hashToken(raw)
 
-    const apiToken = await prisma.apiToken.findUnique({
-      where: { token },
+    // Prefer hash-based lookup (new tokens); fall back to plaintext (legacy tokens)
+    let apiToken = await prisma.apiToken.findUnique({
+      where: { tokenHash: hash },
       include: { admin: true },
     })
+
+    if (!apiToken) {
+      // Legacy plaintext lookup — constant-time safe via DB unique index
+      apiToken = await prisma.apiToken.findUnique({
+        where: { token: raw },
+        include: { admin: true },
+      })
+    }
 
     if (!apiToken) {
       res.status(401).json({ success: false, message: 'Invalid API token' })

@@ -9,7 +9,7 @@ import {
   revokeToken,
 } from '../lib/google-calendar'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production' // validated in lib/jwt.ts at startup
 const SUCCESS_REDIRECT =
   process.env.GOOGLE_OAUTH_SUCCESS_REDIRECT ||
   `${process.env.FRONTEND_URL || 'http://localhost:3001'}/availability`

@@ -151,9 +151,33 @@ export const updateNotificationSettings = async (req: Request, res: Response): P
       smsNotifications?: boolean
     }
 
+    const doctorId = req.doctorId!
+    await prisma.doctor.update({
+      where: { id: doctorId },
+      data: {
+        ...(emailNotifications !== undefined && { emailNotifications }),
+        ...(smsNotifications !== undefined && { smsNotifications }),
+      },
+    })
+
     res.json({ message: 'Notification settings updated', emailNotifications, smsNotifications })
   } catch (error) {
     console.error('Update notification settings error:', error)
+    res.status(500).json({ message: 'Server error' })
+  }
+}
+
+export const getNotificationSettings = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const doctorId = req.doctorId!
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: doctorId },
+      select: { emailNotifications: true, smsNotifications: true },
+    })
+    if (!doctor) { res.status(404).json({ message: 'Doctor not found' }); return }
+    res.json(doctor)
+  } catch (error) {
+    console.error('Get notification settings error:', error)
     res.status(500).json({ message: 'Server error' })
   }
 }

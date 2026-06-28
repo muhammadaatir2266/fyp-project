@@ -103,10 +103,19 @@ export const getPatientChatHistory = async (req: Request, res: Response): Promis
     const id = req.params.id as string
     const doctorId = req.doctorId!
 
-    const hasAppointment = await prisma.appointment.findFirst({ where: { patientId: id, doctorId } })
+    const hasAppointment = await prisma.appointment.findFirst({
+      where: { patientId: id, doctorId },
+      include: { patient: { select: { allowDoctorChatAccess: true } } },
+    })
 
     if (!hasAppointment) {
       res.status(403).json({ message: 'Access denied' })
+      return
+    }
+
+    // Respect patient privacy preference
+    if (hasAppointment.patient.allowDoctorChatAccess === false) {
+      res.json([])
       return
     }
 

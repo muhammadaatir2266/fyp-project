@@ -18,6 +18,7 @@ import {
   updateProfile,
   changePassword,
   updateNotificationSettings,
+  getNotificationSettings,
 } from '../controllers/doctor.controller'
 import { getMyReviews } from '../controllers/reviews.controller'
 
@@ -60,6 +61,7 @@ router.get('/reviews', getMyReviews)
 
 // Settings
 router.put('/settings/password', changePassword)
+router.get('/settings/notifications', getNotificationSettings)
 router.put('/settings/notifications', updateNotificationSettings)
 
 export default router

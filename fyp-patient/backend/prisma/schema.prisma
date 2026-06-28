@@ -100,7 +100,8 @@ model Admin {
 model ApiToken {
   id              String    @id @default(uuid())
   name            String
-  token           String    @unique
+  token           String    @unique   // plaintext kept for backward compat — new tokens use tokenHash
+  tokenHash       String?   @unique   // SHA-256(token) — used for secure lookup when present
   adminId         String
   admin           Admin     @relation(fields: [adminId], references: [id], onDelete: Cascade)
 
@@ -148,6 +149,10 @@ model Patient {
   emergencyContact String?
   medicalHistory   String?
   allergies        String?
+
+  // Privacy preferences
+  shareDataWithAI       Boolean   @default(true)   // share medical history/allergies with AI chat
+  allowDoctorChatAccess Boolean   @default(true)   // allow doctors to view chat history & AI predictions
 
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
@@ -215,6 +220,10 @@ model Doctor {
 
   isActive         Boolean   @default(false)
   isVerified       Boolean   @default(false)
+
+  // Notification preferences
+  emailNotifications Boolean @default(true)
+  smsNotifications   Boolean @default(false)
 
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt

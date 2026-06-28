@@ -99,3 +99,53 @@ export const changePassword = async (req: Request, res: Response) => {
     res.status(500).json({ error: 'Failed to change password' })
   }
 }
+
+const privacySchema = z.object({
+  shareDataWithAI: z.boolean().optional(),
+  allowDoctorChatAccess: z.boolean().optional(),
+})
+
+export const getPrivacySettings = async (req: Request, res: Response) => {
+  try {
+    const patient = await prisma.patient.findUnique({
+      where: { userId: req.user!.userId },
+      select: { shareDataWithAI: true, allowDoctorChatAccess: true },
+    })
+    if (!patient) throw new AppError('Patient profile not found', 404)
+    res.json(patient)
+  } catch (error) {
+    if (error instanceof AppError) return res.status(error.statusCode).json({ error: error.message })
+    res.status(500).json({ error: 'Failed to fetch privacy settings' })
+  }
+}
+
+export const updatePrivacySettings = async (req: Request, res: Response) => {
+  try {
+    const data = privacySchema.parse(req.body)
+    const patient = await prisma.patient.update({
+      where: { userId: req.user!.userId },
+      data,
+      select: { shareDataWithAI: true, allowDoctorChatAccess: true },
+    })
+    res.json({ message: 'Privacy settings updated', ...patient })
+  } catch (error) {
+    if (error instanceof z.ZodError) return res.status(400).json({ error: error.errors[0].message })
+    if (error instanceof AppError) return res.status(error.statusCode).json({ error: error.message })
+    res.status(500).json({ error: 'Failed to update privacy settings' })
+  }
+}
+
+export const deleteChatSessions = async (req: Request, res: Response) => {
+  try {
+    const patient = await prisma.patient.findUnique({
+      where: { userId: req.user!.userId },
+      select: { id: true },
+    })
+    if (!patient) throw new AppError('Patient profile not found', 404)
+    await prisma.chatSession.deleteMany({ where: { patientId: patient.id } })
+    res.json({ message: 'All chat sessions deleted' })
+  } catch (error) {
+    if (error instanceof AppError) return res.status(error.statusCode).json({ error: error.message })
+    res.status(500).json({ error: 'Failed to delete chat sessions' })
+  }
+}

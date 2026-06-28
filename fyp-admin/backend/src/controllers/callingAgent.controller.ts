@@ -1,5 +1,6 @@
 import { Request, Response } from 'express'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import prisma from '../config/database'
 import {
   getBusyIntervals,
@@ -488,10 +489,14 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
       const [firstName, ...lastNameParts] = patientName.trim().split(' ')
       const lastName = lastNameParts.join(' ') || firstName
 
+      // Use a cryptographically random password — the account is claimed later
+      // via patient outreach (phone/email). The password is never recoverable from
+      // this path intentionally; the patient must use "Forgot password" to set one.
+      const randomPassword = crypto.randomBytes(32).toString('hex')
       const user = await prisma.user.create({
         data: {
           email: patientEmail ?? `${patientPhone}@temp.com`,
-          password: await bcrypt.hash('temp123', 10),
+          password: await bcrypt.hash(randomPassword, 10),
           role: 'PATIENT',
         },
       })

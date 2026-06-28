@@ -48,6 +48,11 @@ interface RetellBody {
 export const vapiWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
     const vapiSecret = process.env.VAPI_WEBHOOK_SECRET
+    if (!vapiSecret && process.env.NODE_ENV === 'production') {
+      console.error('FATAL: VAPI_WEBHOOK_SECRET must be set in production.')
+      res.status(500).json({ message: 'Server misconfiguration' })
+      return
+    }
     if (vapiSecret) {
       const incoming = (req.headers['x-vapi-secret'] ?? req.headers['authorization']) as string | undefined
       if (!incoming || !incoming.includes(vapiSecret)) {
@@ -130,6 +135,11 @@ export const vapiWebhook = async (req: Request, res: Response): Promise<void> =>
 export const retellWebhook = async (req: Request, res: Response): Promise<void> => {
   try {
     const retellSecret = process.env.RETELL_WEBHOOK_SECRET
+    if (!retellSecret && process.env.NODE_ENV === 'production') {
+      console.error('FATAL: RETELL_WEBHOOK_SECRET must be set in production.')
+      res.status(500).json({ message: 'Server misconfiguration' })
+      return
+    }
     if (retellSecret) {
       const incoming = req.headers['x-retell-signature'] as string | undefined
       if (!incoming || incoming !== retellSecret) {

@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import prisma from '../config/database'
 
 const generateToken = (): string => crypto.randomBytes(32).toString('hex')
+const hashToken = (raw: string): string => crypto.createHash('sha256').update(raw).digest('hex')
 
 export const getApiTokens = async (_req: Request, res: Response): Promise<void> => {
   try {
@@ -31,6 +32,7 @@ export const createApiToken = async (req: Request, res: Response): Promise<void>
     }
 
     const token = generateToken()
+    const tokenHash = hashToken(token)
 
     let expiresAt: Date | null = null
     if (expiresInDays) {
@@ -41,14 +43,16 @@ export const createApiToken = async (req: Request, res: Response): Promise<void>
     const apiToken = await prisma.apiToken.create({
       data: {
         name,
-        token,
+        token,       // retained for backward compat / display (consider removing in v2)
+        tokenHash,   // secure lookup field
         adminId: req.adminId!,
         expiresAt,
       },
       include: { admin: { select: { firstName: true, lastName: true } } },
     })
 
-    res.status(201).json(apiToken)
+    // Return the plaintext token only at creation time — it is never retrievable again.
+    res.status(201).json({ ...apiToken, token })
   } catch (error) {
     console.error('Create API token error:', error)
     res.status(500).json({ message: 'Server error' })

@@ -1,6 +1,8 @@
 import 'dotenv/config'
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 
 import authRoutes from './routes/auth.routes'
 import doctorRoutes from './routes/doctor.routes'
@@ -10,6 +12,7 @@ import webhookRoutes from './routes/webhook.routes'
 const app = express()
 const PORT = process.env.PORT || 5001
 
+app.use(helmet())
 app.use(
   cors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3001',
@@ -19,12 +22,15 @@ app.use(
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-app.use('/api/auth', authRoutes)
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false })
+const webhookLimiter = rateLimit({ windowMs: 60 * 1000, max: 60, standardHeaders: true, legacyHeaders: false })
+
+app.use('/api/auth', authLimiter, authRoutes)
 // Mounted before /api/doctor so the public Google OAuth callback bypasses the
 // global doctor auth middleware.
 app.use('/api/doctor/google', googleRoutes)
 app.use('/api/doctor', doctorRoutes)
-app.use('/api/webhooks', webhookRoutes)
+app.use('/api/webhooks', webhookLimiter, webhookRoutes)
 
 app.get('/api/health', (_req: Request, res: Response) => {
   res.json({ status: 'OK', message: 'Doctor Dashboard API is running' })

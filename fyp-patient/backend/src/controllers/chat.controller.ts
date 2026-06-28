@@ -85,7 +85,8 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
       },
     })
 
-    // Build webhook payload
+    // Build webhook payload — omit sensitive PHI if patient has opted out of AI data sharing
+    const shareDataWithAI = patient.shareDataWithAI !== false
     const webhookPayload = {
       patient_id: patient.id,
       session_id: session.id,
@@ -98,10 +99,10 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
         firstName: patient.firstName,
         lastName: patient.lastName,
         phone: patient.phone,
-        dateOfBirth: patient.dateOfBirth,
-        gender: patient.gender,
-        medicalHistory: patient.medicalHistory,
-        allergies: patient.allergies,
+        dateOfBirth: shareDataWithAI ? patient.dateOfBirth : undefined,
+        gender: shareDataWithAI ? patient.gender : undefined,
+        medicalHistory: shareDataWithAI ? patient.medicalHistory : undefined,
+        allergies: shareDataWithAI ? patient.allergies : undefined,
         city: patient.city,
       },
       location: await resolveN8nLocation({ clientLocation: location, patient }),
@@ -115,7 +116,6 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     })
 
     const n8nData = webhookResponse.data
-    console.log('[n8n raw response]', JSON.stringify(n8nData))
     const parsed = parseN8nChatResponse(n8nData)
     const responseMessage = parsed.message
     const normalizedPredictions = parsed.predictions
@@ -238,7 +238,6 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
     })
 
     const n8nData = webhookResponse.data
-    console.log('[n8n guest raw response]', JSON.stringify(n8nData))
     const parsed = parseN8nChatResponse(n8nData)
 
     res.json({

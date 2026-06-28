@@ -7,11 +7,12 @@ import {
   createVoiceCall,
   createCallIntent,
 } from '../controllers/appointments.controller'
-import { authenticateToken } from '../middleware/auth.middleware'
+import { authenticateToken, requireRole } from '../middleware/auth.middleware'
 
 const router: Router = Router()
 
 router.use(authenticateToken)
+router.use(requireRole('PATIENT'))
 
 router.get('/', getAppointments)
 router.post('/', bookAppointment)

@@ -1,12 +1,19 @@
 import 'dotenv/config'
 import express, { Request, Response, NextFunction } from 'express'
 import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 
 import authRoutes from './routes/auth.routes'
 import adminRoutes from './routes/admin.routes'
 import apiRoutes from './routes/api.routes'
 
 const app = express()
+
+app.use(helmet())
+
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false })
+const apiLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false })
 
 const allowedOrigins = [
   process.env.FRONTEND_URL,
@@ -25,9 +32,9 @@ app.use(cors({
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-app.use('/api/auth', authRoutes)
+app.use('/api/auth', authLimiter, authRoutes)
 app.use('/api/admin', adminRoutes)
-app.use('/api/v1', apiRoutes)
+app.use('/api/v1', apiLimiter, apiRoutes)
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ status: 'ok', message: 'Admin API is running' })

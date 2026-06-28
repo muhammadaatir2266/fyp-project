@@ -1,6 +1,11 @@
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
 
+if (process.env.NODE_ENV === 'production') {
+  console.error('ERROR: Seed script must not run in production. Aborting.')
+  process.exit(1)
+}
+
 const prisma = new PrismaClient()
 
 async function main(): Promise<void> {

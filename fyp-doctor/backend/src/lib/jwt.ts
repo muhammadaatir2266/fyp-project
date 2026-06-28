@@ -1,6 +1,15 @@
 import jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production'
+const DEFAULT_SECRET = 'your-secret-key-change-in-production'
+
+if (process.env.NODE_ENV === 'production') {
+  if (!process.env.JWT_SECRET || process.env.JWT_SECRET === DEFAULT_SECRET) {
+    console.error('FATAL: JWT_SECRET must be set to a strong secret in production.')
+    process.exit(1)
+  }
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || DEFAULT_SECRET
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '7d'
 
 export interface JwtPayload {

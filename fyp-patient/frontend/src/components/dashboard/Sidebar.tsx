@@ -12,6 +12,7 @@ import {
   Settings,
   MessageSquare,
   Stethoscope,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,11 @@ const sidebarLinks = [
     title: "Settings",
     href: "/patient/settings",
     icon: Settings,
+  },
+  {
+    title: "Privacy",
+    href: "/patient/settings/privacy",
+    icon: ShieldCheck,
   },
 ];
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Settings as SettingsIcon, Lock, Bell, Save } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,16 @@ export default function SettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [smsNotifications, setSmsNotifications] = useState(false);
+
+  // Load persisted notification settings on mount
+  useEffect(() => {
+    api.get("/doctor/settings/notifications")
+      .then((r) => {
+        if (r.data.emailNotifications !== undefined) setEmailNotifications(r.data.emailNotifications);
+        if (r.data.smsNotifications !== undefined) setSmsNotifications(r.data.smsNotifications);
+      })
+      .catch(() => {});
+  }, []);
   const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
 
