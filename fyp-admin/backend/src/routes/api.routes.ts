@@ -15,6 +15,10 @@ router.get('/doctors/:doctorId/availability', callingAgentController.checkDoctor
 router.get('/doctors/:doctorId/slots', callingAgentController.getAvailableSlots)
 router.post('/doctors/:doctorId/appointments', callingAgentController.bookAppointment)
 
+// Appointment management for voice agents
+router.get('/appointments', callingAgentController.getAppointments)
+router.patch('/appointments/:appointmentId/cancel', callingAgentController.cancelAppointment)
+
 // Reference data for AI agents
 router.get('/specialties', callingAgentController.getSpecialtiesForAgent)
 router.get('/cities', callingAgentController.getCitiesForAgent)

@@ -225,6 +225,8 @@ function AppointmentsContent() {
   // Reschedule state
   const [rescheduleTarget, setRescheduleTarget] = useState<Appointment | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
+  const [cancelling, setCancelling] = useState(false);
 
   // Review state
   const [reviewTarget, setReviewTarget] = useState<Appointment | null>(null);
@@ -289,13 +291,18 @@ function AppointmentsContent() {
     }
   }
 
-  async function handleCancel(id: string) {
+  async function handleCancel() {
+    if (!cancelTarget) return;
+    setCancelling(true);
     try {
-      await api.patch(`/appointments/${id}`, { status: "CANCELLED" });
+      await api.patch(`/appointments/${cancelTarget.id}`, { status: "CANCELLED" });
       toast.success("Appointment cancelled");
+      setCancelTarget(null);
       fetchAppointments();
     } catch {
       toast.error("Failed to cancel appointment");
+    } finally {
+      setCancelling(false);
     }
   }
 
@@ -494,7 +501,8 @@ function AppointmentsContent() {
             const dt = new Date(apt.scheduledAt);
             const isUpcoming = dt >= new Date() && (apt.status === "PENDING" || apt.status === "CONFIRMED");
             const canReschedule = isUpcoming;
-            const canCancel = apt.status === "PENDING" && isUpcoming;
+            const canCancel = isUpcoming; // patients can cancel both PENDING and CONFIRMED
+            const isCancelling = cancelTarget?.id === apt.id;
             const canReview = apt.status === "COMPLETED" && !apt.review;
             const isRescheduling = rescheduleTarget?.id === apt.id;
 
@@ -562,12 +570,12 @@ function AppointmentsContent() {
                         </Button>
                       )}
 
-                      {canCancel && (
+                      {canCancel && !isCancelling && (
                         <Button
                           size="sm"
                           variant="ghost"
                           className="text-destructive hover:bg-destructive/10 h-7 text-xs"
-                          onClick={() => handleCancel(apt.id)}
+                          onClick={() => setCancelTarget(apt)}
                         >
                           Cancel
                         </Button>
@@ -600,13 +608,39 @@ function AppointmentsContent() {
                       <p className="text-sm font-medium mb-2">Choose a new date and time</p>
                       <SlotPicker
                         doctorId={apt.doctor.id}
-                        initialDate={new Date(apt.scheduledAt).toISOString().split("T")[0]}
-                        initialSlot={`${String(new Date(apt.scheduledAt).getHours()).padStart(2, "0")}:${String(new Date(apt.scheduledAt).getMinutes()).padStart(2, "0")}`}
+                        initialDate={new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date(apt.scheduledAt))}
+                        initialSlot={new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date(apt.scheduledAt)).replace(/^(\d):/, "0$1:")}
                         loading={rescheduling}
                         label="Confirm Reschedule"
                         onConfirm={handleReschedule}
                         onCancel={() => setRescheduleTarget(null)}
                       />
+                    </div>
+                  )}
+
+                  {/* Inline cancel confirmation */}
+                  {isCancelling && (
+                    <div className="mt-4 border-t border-destructive/20 pt-4">
+                      <p className="text-sm font-medium text-destructive mb-1">Cancel this appointment?</p>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Dr. {apt.doctor.firstName} {apt.doctor.lastName} on{" "}
+                        {dt.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} at{" "}
+                        {new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", hour: "2-digit", minute: "2-digit" }).format(dt)}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          disabled={cancelling}
+                          onClick={handleCancel}
+                        >
+                          {cancelling && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
+                          Yes, cancel appointment
+                        </Button>
+                        <Button size="sm" variant="ghost" onClick={() => setCancelTarget(null)}>
+                          Keep it
+                        </Button>
+                      </div>
                     </div>
                   )}
                 </CardContent>

@@ -4,6 +4,7 @@ import prisma from '../config/database'
 import {
   getBusyIntervals,
   createCalendarEvent,
+  deleteCalendarEvent,
   type GoogleDoctor,
   type BusyInterval,
 } from '../lib/google-calendar'
@@ -687,5 +688,157 @@ export const getCitiesForAgent = async (req: Request, res: Response): Promise<vo
   } catch (error) {
     console.error('Get cities error:', error)
     res.status(500).json({ success: false, message: 'Server error while fetching cities' })
+  }
+}
+
+/**
+ * GET /api/v1/appointments
+ * List appointments for a patient, optionally filtered by status or upcoming-only.
+ * Requires at least one patient identifier: patientId or patientPhone.
+ */
+export const getAppointments = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const {
+      patientId,
+      patientPhone,
+      status,
+      upcoming,
+    } = req.query as {
+      patientId?: string
+      patientPhone?: string
+      status?: string
+      upcoming?: string
+    }
+
+    if (!patientId && !patientPhone) {
+      res.status(400).json({
+        success: false,
+        message: 'Provide at least one patient identifier: patientId or patientPhone',
+      })
+      return
+    }
+
+    // Resolve patient
+    let resolvedPatientId: string | undefined = patientId
+
+    if (!resolvedPatientId && patientPhone) {
+      const patient = await prisma.patient.findFirst({ where: { phone: patientPhone }, select: { id: true } })
+      if (!patient) {
+        res.json({ success: true, count: 0, appointments: [] })
+        return
+      }
+      resolvedPatientId = patient.id
+    }
+
+    const where: Record<string, unknown> = { patientId: resolvedPatientId }
+
+    if (status) {
+      where.status = status.toUpperCase()
+    }
+
+    if (upcoming === 'true') {
+      where.scheduledAt = { gte: new Date() }
+      if (!status) where.status = { in: ['PENDING', 'CONFIRMED'] }
+    }
+
+    const appointments = await prisma.appointment.findMany({
+      where,
+      include: {
+        doctor: { select: { id: true, firstName: true, lastName: true, specialty: { select: { name: true } }, city: true } },
+      },
+      orderBy: { scheduledAt: 'asc' },
+    })
+
+    res.json({
+      success: true,
+      count: appointments.length,
+      appointments: appointments.map((a) => ({
+        id: a.id,
+        doctor: {
+          id: a.doctor.id,
+          name: `Dr. ${a.doctor.firstName} ${a.doctor.lastName}`,
+          specialty: a.doctor.specialty?.name,
+          city: a.doctor.city,
+        },
+        scheduledAt: a.scheduledAt,
+        duration: a.duration,
+        status: a.status,
+        reason: a.reason,
+        source: a.source,
+      })),
+    })
+  } catch (error) {
+    console.error('Get appointments error:', error)
+    res.status(500).json({ success: false, message: 'Server error while fetching appointments' })
+  }
+}
+
+/**
+ * PATCH /api/v1/appointments/:appointmentId/cancel
+ * Cancel an appointment. Only PENDING or CONFIRMED appointments can be cancelled.
+ */
+export const cancelAppointment = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { appointmentId } = req.params
+
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        doctor: {
+          select: {
+            id: true, firstName: true, lastName: true,
+            googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
+          },
+        },
+        patient: { select: { firstName: true, lastName: true } },
+      },
+    })
+
+    if (!appointment) {
+      res.status(404).json({ success: false, message: 'Appointment not found' })
+      return
+    }
+
+    if (appointment.status === 'CANCELLED') {
+      res.status(400).json({ success: false, message: 'Appointment is already cancelled' })
+      return
+    }
+
+    if (appointment.status === 'COMPLETED' || appointment.status === 'NO_SHOW') {
+      res.status(400).json({
+        success: false,
+        message: `Cannot cancel a ${appointment.status.toLowerCase()} appointment`,
+      })
+      return
+    }
+
+    await prisma.appointment.update({
+      where: { id: appointmentId },
+      data: { status: 'CANCELLED', cancelledBy: 'PATIENT' },
+    })
+
+    // Best-effort: remove from doctor's Google Calendar
+    if (appointment.googleEventId && appointment.doctor.googleCalendarConnected) {
+      await deleteCalendarEvent(appointment.doctor, appointment.googleEventId).catch(() => {})
+    }
+
+    res.json({
+      success: true,
+      message: 'Appointment cancelled successfully',
+      appointment: {
+        id: appointment.id,
+        status: 'CANCELLED',
+        doctor: {
+          name: `Dr. ${appointment.doctor.firstName} ${appointment.doctor.lastName}`,
+        },
+        patient: {
+          name: `${appointment.patient.firstName} ${appointment.patient.lastName}`,
+        },
+        scheduledAt: appointment.scheduledAt,
+      },
+    })
+  } catch (error) {
+    console.error('Cancel appointment error:', error)
+    res.status(500).json({ success: false, message: 'Server error while cancelling appointment' })
   }
 }

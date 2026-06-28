@@ -7,6 +7,8 @@ import * as searchDoctors from './tools/searchDoctors.js'
 import * as checkAvailability from './tools/checkAvailability.js'
 import * as getSlots from './tools/getSlots.js'
 import * as bookAppointment from './tools/bookAppointment.js'
+import * as getAppointments from './tools/getAppointments.js'
+import * as cancelAppointment from './tools/cancelAppointment.js'
 import * as getSpecialties from './tools/getSpecialties.js'
 import * as getCities from './tools/getCities.js'
 
@@ -28,6 +30,8 @@ function createServer(): McpServer {
   checkAvailability.register(server)
   getSlots.register(server)
   bookAppointment.register(server)
+  getAppointments.register(server)
+  cancelAppointment.register(server)
   getSpecialties.register(server)
   getCities.register(server)
 
@@ -72,7 +76,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
 
 // Health check
 app.get('/health', (_req: Request, res: Response) => {
-  res.json({ status: 'ok', service: 'doclink-mcp', tools: 6 })
+  res.json({ status: 'ok', service: 'doclink-mcp', tools: 8 })
 })
 
 // ---------------------------------------------------------------------------

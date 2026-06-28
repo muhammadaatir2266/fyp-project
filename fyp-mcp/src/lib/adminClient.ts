@@ -156,3 +156,49 @@ export async function getSpecialties(): Promise<SpecialtiesResponse> {
 export async function getCities(): Promise<CitiesResponse> {
   return request<CitiesResponse>('/cities')
 }
+
+export interface AppointmentSummary {
+  id: string
+  doctor: { id: string; name: string; specialty: string; city: string }
+  scheduledAt: string
+  duration: number
+  status: string
+  reason: string | null
+  source: string
+}
+
+export interface AppointmentsResponse {
+  success: boolean
+  count: number
+  appointments: AppointmentSummary[]
+}
+
+export interface CancelResponse {
+  success: boolean
+  message: string
+  appointment: {
+    id: string
+    status: string
+    doctor: { name: string }
+    patient: { name: string }
+    scheduledAt: string
+  }
+}
+
+export async function getAppointments(params: {
+  patientId?: string
+  patientPhone?: string
+  status?: string
+  upcoming?: boolean
+}): Promise<AppointmentsResponse> {
+  const qs = new URLSearchParams()
+  if (params.patientId) qs.set('patientId', params.patientId)
+  if (params.patientPhone) qs.set('patientPhone', params.patientPhone)
+  if (params.status) qs.set('status', params.status)
+  if (params.upcoming) qs.set('upcoming', 'true')
+  return request<AppointmentsResponse>(`/appointments?${qs}`)
+}
+
+export async function cancelAppointment(appointmentId: string): Promise<CancelResponse> {
+  return request<CancelResponse>(`/appointments/${appointmentId}/cancel`, { method: 'PATCH' })
+}

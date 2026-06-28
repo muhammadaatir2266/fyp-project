@@ -172,6 +172,70 @@ interface Endpoint {
   }
 }`
     }
+  },
+  {
+    method: 'GET',
+    path: '/api/v1/appointments',
+    description: 'List a patient\'s appointments, optionally filtered by status or upcoming-only. Used by voice agents to look up a patient\'s bookings before cancelling.',
+    auth: 'API Token',
+    params: [
+      { name: 'patientId', type: 'string', required: false, description: 'Patient ID (required if patientPhone not provided)' },
+      { name: 'patientPhone', type: 'string', required: false, description: 'Patient phone number (required if patientId not provided)' },
+      { name: 'status', type: 'string', required: false, description: 'Filter by status: PENDING, CONFIRMED, CANCELLED, COMPLETED, NO_SHOW' },
+      { name: 'upcoming', type: 'boolean', required: false, description: 'Set to true to return only future PENDING/CONFIRMED appointments' }
+    ],
+    response: 'Array of appointment objects',
+    example: {
+      request: `curl -X GET "${baseUrl}/api/v1/appointments?patientPhone=%2B923001234567&upcoming=true" \\
+  -H "Authorization: Bearer YOUR_API_TOKEN"`,
+      response: `{
+  "success": true,
+  "count": 1,
+  "appointments": [
+    {
+      "id": "uuid",
+      "doctor": {
+        "id": "uuid",
+        "name": "Dr. John Smith",
+        "specialty": "Cardiology",
+        "city": "Karachi"
+      },
+      "scheduledAt": "2024-03-15T09:00:00Z",
+      "duration": 30,
+      "status": "PENDING",
+      "reason": "Regular checkup",
+      "source": "CALLING_AGENT"
+    }
+  ]
+}`
+    }
+  },
+  {
+    method: 'PATCH',
+    path: '/api/v1/appointments/:id/cancel',
+    description: 'Cancel an appointment by ID. Only PENDING or CONFIRMED appointments can be cancelled. Also removes the event from the doctor\'s Google Calendar if connected.',
+    auth: 'API Token',
+    params: [],
+    response: 'Cancellation confirmation object',
+    example: {
+      request: `curl -X PATCH "${baseUrl}/api/v1/appointments/uuid/cancel" \\
+  -H "Authorization: Bearer YOUR_API_TOKEN"`,
+      response: `{
+  "success": true,
+  "message": "Appointment cancelled successfully",
+  "appointment": {
+    "id": "uuid",
+    "status": "CANCELLED",
+    "doctor": {
+      "name": "Dr. John Smith"
+    },
+    "patient": {
+      "name": "Jane Doe"
+    },
+    "scheduledAt": "2024-03-15T09:00:00Z"
+  }
+}`
+    }
   }
 ];
 
@@ -486,6 +550,7 @@ export default function ApiDocsPage() {
                 { code: '401', message: 'Unauthorized - Invalid or missing API token' },
                 { code: '403', message: 'Forbidden - API token expired or revoked' },
                 { code: '404', message: 'Not Found - Resource not found' },
+                { code: '409', message: 'Conflict - Slot already booked or duplicate request' },
                 { code: '500', message: 'Internal Server Error - Server error' },
               ].map((error, i) => (
                 <div key={i} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
