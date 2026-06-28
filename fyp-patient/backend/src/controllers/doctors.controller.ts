@@ -1,7 +1,7 @@
 import { Request, Response } from 'express'
 import { prisma } from '../lib/prisma'
 import { haversineKm } from '../lib/geocode'
-import { findSoonestSlot, buildBookedMap, generateDaySlots } from '../lib/availability'
+import { findSoonestSlot, buildBookedMap, generateDaySlots, parseLocalDate, localDateKey } from '../lib/availability'
 import { batchDoctorMetrics } from '../lib/doctorMetrics'
 import { resolveSpecialty } from '../lib/specialty'
 import { getBusyIntervals, blockBusyIntoBookedTimes } from '../lib/google-calendar'
@@ -317,7 +317,12 @@ export const getDoctorSlots = async (req: Request, res: Response) => {
       return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
     }))
 
-    const requestedDate = new Date(date)
+    const requestedDate = parseLocalDate(date)
+
+    // Past dates have no bookable slots.
+    if (date < localDateKey(new Date())) {
+      return res.json({ date, slots: [], reason: 'Cannot book appointments in the past' })
+    }
 
     // Subtract the doctor's external Google Calendar busy times (fail-open).
     const busy = await getBusyIntervals(

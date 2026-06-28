@@ -195,6 +195,10 @@ model Doctor {
   // for that date; an empty array means the whole day is unavailable.
   slotOverrides    Json?
 
+  // Minimum number of 30-min slots after "now" before same-day booking is allowed.
+  // e.g. 2 = patients can book no sooner than 1 hour from the current time today.
+  minAdvanceSlots  Int       @default(2)
+
   // Google Calendar integration (availability sync). Refresh token is encrypted at rest.
   googleCalendarConnected Boolean @default(false)
   googleRefreshToken      String?

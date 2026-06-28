@@ -15,6 +15,7 @@ export const getAvailability = async (req: Request, res: Response): Promise<void
         workingDays: true,
         unavailableDates: true,
         slotOverrides: true,
+        minAdvanceSlots: true,
       },
     })
 
@@ -28,13 +29,14 @@ export const getAvailability = async (req: Request, res: Response): Promise<void
 export const updateAvailability = async (req: Request, res: Response): Promise<void> => {
   try {
     const doctorId = req.doctorId!
-    const { availableFrom, availableTo, workingDays, unavailableDates, slotOverrides } =
+    const { availableFrom, availableTo, workingDays, unavailableDates, slotOverrides, minAdvanceSlots } =
       req.body as {
         availableFrom?: string
         availableTo?: string
         workingDays?: string[]
         unavailableDates?: string[]
         slotOverrides?: Record<string, string[]>
+        minAdvanceSlots?: number
       }
 
     const doctor = await prisma.doctor.update({
@@ -45,6 +47,7 @@ export const updateAvailability = async (req: Request, res: Response): Promise<v
         workingDays,
         ...(unavailableDates && { unavailableDates }),
         ...(slotOverrides !== undefined && { slotOverrides }),
+        ...(minAdvanceSlots !== undefined && { minAdvanceSlots: Math.max(0, Math.min(12, minAdvanceSlots)) }),
       },
     })
 

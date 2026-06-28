@@ -4,6 +4,8 @@
  * soonest-slot computation.
  */
 
+const SLOT_MINUTES = 30
+
 interface DoctorSchedule {
   availableFrom: string | null
   availableTo: string | null
@@ -11,6 +13,74 @@ interface DoctorSchedule {
   unavailableDates: string[]
   // Per-date Calendly-style overrides: { "YYYY-MM-DD": ["HH:MM", ...] }
   slotOverrides?: unknown
+  // Minimum 30-min slots after "now" before same-day booking is allowed.
+  minAdvanceSlots?: number | null
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
+/** Local civil date key "YYYY-MM-DD". */
+export function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+/** Parse a local date from "YYYY-MM-DD". */
+export function parseLocalDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+/** Combine a date key and "HH:MM" slot into a local Date. */
+export function slotStartAt(dateStr: string, slot: string): Date {
+  const [h, m] = slot.split(':').map(Number)
+  const d = parseLocalDate(dateStr)
+  d.setHours(h, m, 0, 0)
+  return d
+}
+
+/**
+ * Earliest bookable slot start for same-day booking.
+ * Adds minAdvanceSlots × 30 minutes to now, then rounds up to the next slot boundary.
+ */
+export function earliestBookableAt(minAdvanceSlots: number, now: Date = new Date()): Date {
+  const slots = Math.max(0, minAdvanceSlots ?? 0)
+  const earliest = new Date(now.getTime() + slots * SLOT_MINUTES * 60_000)
+
+  const minutes = earliest.getMinutes()
+  const remainder = minutes % SLOT_MINUTES
+  if (remainder !== 0 || earliest.getSeconds() > 0 || earliest.getMilliseconds() > 0) {
+    earliest.setMinutes(minutes + (SLOT_MINUTES - remainder), 0, 0)
+  } else {
+    earliest.setSeconds(0, 0)
+  }
+
+  return earliest
+}
+
+/** True when a slot on dateStr is in the past or inside the same-day advance buffer. */
+export function isSlotTooSoon(
+  dateStr: string,
+  slot: string,
+  minAdvanceSlots: number,
+  now: Date = new Date(),
+): boolean {
+  const todayKey = localDateKey(now)
+  if (dateStr < todayKey) return true
+  if (dateStr > todayKey) return false
+  return slotStartAt(dateStr, slot) < earliestBookableAt(minAdvanceSlots, now)
+}
+
+/** Remove past slots and same-day slots inside the advance buffer. */
+export function filterBookableSlots(
+  dateStr: string,
+  slots: string[],
+  minAdvanceSlots: number,
+  now: Date = new Date(),
+): string[] {
+  const todayKey = localDateKey(now)
+  if (dateStr < todayKey) return []
+  if (dateStr > todayKey) return slots
+  return slots.filter((slot) => !isSlotTooSoon(dateStr, slot, minAdvanceSlots, now))
 }
 
 /**
@@ -32,30 +102,35 @@ export function generateDaySlots(
   doctor: DoctorSchedule,
   date: Date,
   bookedTimes: Set<string>,
+  now: Date = new Date(),
 ): string[] {
-  const dateStr = date.toISOString().split('T')[0]
+  const dateStr = localDateKey(date)
+  const minAdvance = doctor.minAdvanceSlots ?? 2
+
+  let slots: string[]
 
   // A per-date override fully replaces the weekly default for that date.
   const override = getDateOverride(doctor.slotOverrides, dateStr)
   if (override) {
-    return [...override].sort().filter((s) => !bookedTimes.has(s))
+    slots = [...override].sort().filter((s) => !bookedTimes.has(s))
+  } else {
+    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
+    if (!doctor.workingDays.includes(dayName)) return []
+    if (doctor.unavailableDates?.includes(dateStr)) return []
+
+    const fromHour = parseInt((doctor.availableFrom ?? '09:00').split(':')[0])
+    const toHour = parseInt((doctor.availableTo ?? '17:00').split(':')[0])
+
+    slots = []
+    for (let h = fromHour; h < toHour; h++) {
+      const s1 = `${pad(h)}:00`
+      const s2 = `${pad(h)}:30`
+      if (!bookedTimes.has(s1)) slots.push(s1)
+      if (!bookedTimes.has(s2)) slots.push(s2)
+    }
   }
 
-  const dayName = date.toLocaleDateString('en-US', { weekday: 'long' })
-  if (!doctor.workingDays.includes(dayName)) return []
-  if (doctor.unavailableDates?.includes(dateStr)) return []
-
-  const fromHour = parseInt((doctor.availableFrom ?? '09:00').split(':')[0])
-  const toHour = parseInt((doctor.availableTo ?? '17:00').split(':')[0])
-
-  const slots: string[] = []
-  for (let h = fromHour; h < toHour; h++) {
-    const s1 = `${String(h).padStart(2, '0')}:00`
-    const s2 = `${String(h).padStart(2, '0')}:30`
-    if (!bookedTimes.has(s1)) slots.push(s1)
-    if (!bookedTimes.has(s2)) slots.push(s2)
-  }
-  return slots
+  return filterBookableSlots(dateStr, slots, minAdvance, now)
 }
 
 export interface AvailabilityResult {
@@ -85,16 +160,13 @@ export function findSoonestSlot(
     day.setDate(day.getDate() + d)
     day.setHours(0, 0, 0, 0)
 
-    const dateStr = day.toISOString().split('T')[0]
+    const dateStr = localDateKey(day)
     const booked = bookedMap.get(dateStr) ?? new Set<string>()
-    const slots = generateDaySlots(doctor, day, booked)
+    const slots = generateDaySlots(doctor, day, booked, fromDate)
 
     for (const slot of slots) {
-      const [h, m] = slot.split(':').map(Number)
-      const slotDate = new Date(day)
-      slotDate.setHours(h, m, 0, 0)
-
-      if (slotDate <= fromDate) continue // slot already passed today
+      const slotDate = slotStartAt(dateStr, slot)
+      if (slotDate <= fromDate) continue
 
       return {
         nextAvailableAt: slotDate,
@@ -113,8 +185,8 @@ export function findSoonestSlot(
 export function buildBookedMap(scheduledAts: Date[]): Map<string, Set<string>> {
   const map = new Map<string, Set<string>>()
   for (const dt of scheduledAts) {
-    const dateStr = dt.toISOString().split('T')[0]
-    const timeStr = `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`
+    const dateStr = localDateKey(dt)
+    const timeStr = `${pad(dt.getHours())}:${pad(dt.getMinutes())}`
     if (!map.has(dateStr)) map.set(dateStr, new Set())
     map.get(dateStr)!.add(timeStr)
   }
@@ -128,8 +200,8 @@ export interface SlotValidationResult {
 
 /**
  * Validate that a requested scheduledAt time is a bookable slot.
- * Checks: not in past, working day, not on unavailableDates,
- * within availableFrom/availableTo, slot not already booked.
+ * Checks: not in past, same-day advance buffer, working day, not on
+ * unavailableDates, within availableFrom/availableTo, slot not already booked.
  *
  * @param doctor             Doctor schedule fields
  * @param scheduledAt        The requested appointment time
@@ -143,14 +215,26 @@ export function validateScheduledSlot(
   excludeApptId?: string,
 ): SlotValidationResult {
   const now = new Date()
+  const minAdvance = doctor.minAdvanceSlots ?? 2
+  const dateStr = localDateKey(scheduledAt)
+  const slotHour = scheduledAt.getHours()
+  const slotMin = scheduledAt.getMinutes()
+  const slotStr = `${pad(slotHour)}:${pad(slotMin)}`
+
   if (scheduledAt <= now) {
     return { valid: false, error: 'Appointment time must be in the future.' }
   }
 
-  const dateStr = scheduledAt.toISOString().split('T')[0]
-  const slotHour = scheduledAt.getHours()
-  const slotMin = scheduledAt.getMinutes()
-  const slotStr = `${String(slotHour).padStart(2, '0')}:${String(slotMin).padStart(2, '0')}`
+  if (isSlotTooSoon(dateStr, slotStr, minAdvance, now)) {
+    const hours = (minAdvance * SLOT_MINUTES) / 60
+    const label =
+      minAdvance === 0
+        ? 'This time slot has already passed.'
+        : minAdvance === 1
+          ? 'Same-day bookings require at least 30 minutes notice.'
+          : `Same-day bookings require at least ${hours} hour${hours !== 1 ? 's' : ''} notice (${minAdvance} slots).`
+    return { valid: false, error: label }
+  }
 
   // A per-date override fully replaces the weekly default for that date.
   const override = getDateOverride(doctor.slotOverrides, dateStr)

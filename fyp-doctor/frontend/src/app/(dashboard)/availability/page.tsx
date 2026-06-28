@@ -35,6 +35,38 @@ const DAYS_OF_WEEK = [
 ];
 
 const pad = (n: number) => String(n).padStart(2, "0");
+const SLOT_MINUTES = 30;
+
+// Local civil date key "YYYY-MM-DD" (avoids UTC day-shift from toISOString()).
+const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+function slotStartAt(dateStr: string, slot: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [h, min] = slot.split(":").map(Number);
+  const dt = new Date(y, m - 1, d);
+  dt.setHours(h, min, 0, 0);
+  return dt;
+}
+
+function earliestBookableAt(minAdvanceSlots: number, now = new Date()): Date {
+  const slots = Math.max(0, minAdvanceSlots);
+  const earliest = new Date(now.getTime() + slots * SLOT_MINUTES * 60_000);
+  const minutes = earliest.getMinutes();
+  const remainder = minutes % SLOT_MINUTES;
+  if (remainder !== 0 || earliest.getSeconds() > 0 || earliest.getMilliseconds() > 0) {
+    earliest.setMinutes(minutes + (SLOT_MINUTES - remainder), 0, 0);
+  } else {
+    earliest.setSeconds(0, 0);
+  }
+  return earliest;
+}
+
+function isSlotTooSoon(dateStr: string, slot: string, minAdvanceSlots: number, now = new Date()): boolean {
+  const todayKey = dateKey(now);
+  if (dateStr < todayKey) return true;
+  if (dateStr > todayKey) return false;
+  return slotStartAt(dateStr, slot) < earliestBookableAt(minAdvanceSlots, now);
+}
 
 // Full-day 30-minute grid of slot labels ("00:00" … "23:30").
 const ALL_SLOTS: string[] = (() => {
@@ -45,8 +77,6 @@ const ALL_SLOTS: string[] = (() => {
   return slots;
 })();
 
-// Local civil date key "YYYY-MM-DD" (avoids UTC day-shift from toISOString()).
-const dateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parseKey = (k: string) => {
   const [y, m, d] = k.split("-").map(Number);
   return new Date(y, m - 1, d);
@@ -57,6 +87,7 @@ type SlotOverrides = Record<string, string[]>;
 export default function AvailabilityPage() {
   const [availableFrom, setAvailableFrom] = useState("09:00");
   const [availableTo, setAvailableTo] = useState("17:00");
+  const [minAdvanceSlots, setMinAdvanceSlots] = useState(2);
   const [workingDays, setWorkingDays] = useState<string[]>([]);
   const [slotOverrides, setSlotOverrides] = useState<SlotOverrides>({});
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -134,6 +165,7 @@ export default function AvailabilityPage() {
       const data = response.data;
       setAvailableFrom(data.availableFrom || "09:00");
       setAvailableTo(data.availableTo || "17:00");
+      setMinAdvanceSlots(typeof data.minAdvanceSlots === "number" ? data.minAdvanceSlots : 2);
       setWorkingDays(data.workingDays || []);
 
       // slotOverrides is stored as JSON: { "YYYY-MM-DD": ["HH:MM", ...] }
@@ -163,6 +195,7 @@ export default function AvailabilityPage() {
         availableTo,
         workingDays,
         slotOverrides,
+        minAdvanceSlots,
       });
       setMessage("Availability updated successfully!");
       setTimeout(() => setMessage(""), 3000);
@@ -207,6 +240,7 @@ export default function AvailabilityPage() {
 
   const toggleSlot = (slot: string) => {
     if (!editingKey || !selectedDate) return;
+    if (isSlotTooSoon(editingKey, slot, minAdvanceSlots)) return;
     setSlotOverrides((prev) => {
       const base = prev[editingKey] ?? defaultSlotsForDate(selectedDate);
       const set = new Set(base);
@@ -370,11 +404,40 @@ export default function AvailabilityPage() {
                 </div>
               </div>
 
-              <div className="pt-4 border-t">
+              <div className="pt-4 border-t space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="minAdvance" className="text-sm font-medium flex items-center gap-2">
+                    Same-day booking buffer
+                    <Badge variant="outline" className="text-xs">Slots</Badge>
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      id="minAdvance"
+                      type="number"
+                      min={0}
+                      max={12}
+                      value={minAdvanceSlots}
+                      onChange={(e) =>
+                        setMinAdvanceSlots(Math.max(0, Math.min(12, parseInt(e.target.value) || 0)))
+                      }
+                      className="w-24 h-11 text-center font-medium"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Patients can book today starting{" "}
+                      <span className="font-medium text-foreground">
+                        {minAdvanceSlots * 30} min
+                      </span>{" "}
+                      from now ({minAdvanceSlots} × 30-min slot{minAdvanceSlots !== 1 ? "s" : ""}).
+                      Past slots are always hidden.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
                   <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <p className="text-xs text-blue-600">
-                    These hours apply to every working day, unless you customize a specific date below.
+                    Default hours apply to every working day unless you customize a specific date below.
+                    Same-day bookings respect the buffer above; past time slots are never bookable.
                   </p>
                 </div>
               </div>
@@ -607,15 +670,24 @@ export default function AvailabilityPage() {
                     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-1.5">
                       {ALL_SLOTS.map((slot) => {
                         const active = editingSet.has(slot);
+                        const locked = editingKey ? isSlotTooSoon(editingKey, slot, minAdvanceSlots) : false;
                         return (
                           <button
                             key={slot}
                             type="button"
+                            disabled={locked}
                             onClick={() => toggleSlot(slot)}
+                            title={
+                              locked
+                                ? "Past or inside same-day booking buffer — not bookable by patients"
+                                : undefined
+                            }
                             className={`px-1 py-1.5 rounded-md text-xs font-medium border transition-all ${
-                              active
-                                ? "bg-primary text-primary-foreground border-primary shadow-sm hover:bg-primary/90"
-                                : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
+                              locked
+                                ? "bg-muted/60 text-muted-foreground/50 border-transparent cursor-not-allowed line-through"
+                                : active
+                                  ? "bg-primary text-primary-foreground border-primary shadow-sm hover:bg-primary/90"
+                                  : "bg-card text-muted-foreground border-border hover:border-primary/40 hover:text-foreground"
                             }`}
                           >
                             {slot}
@@ -624,11 +696,18 @@ export default function AvailabilityPage() {
                       })}
                     </div>
 
+                    {editingKey === dateKey(new Date()) && (
+                      <p className="text-xs text-muted-foreground">
+                        Crossed-out slots are in the past or inside your {minAdvanceSlots}-slot same-day
+                        buffer and won&apos;t appear to patients.
+                      </p>
+                    )}
+
                     <div className="flex items-start gap-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20">
                       <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                       <p className="text-xs text-blue-600">
-                        Green slots are bookable. Turn all slots off to mark the whole day as
-                        unavailable. Remember to save your changes.
+                        Highlighted slots are bookable by patients. Turn all slots off to mark the whole
+                        day as unavailable. Remember to save your changes.
                       </p>
                     </div>
                   </div>

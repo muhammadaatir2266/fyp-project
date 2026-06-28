@@ -8,6 +8,48 @@ import {
   type BusyInterval,
 } from '../lib/google-calendar'
 
+const SLOT_MINUTES = 30
+const pad = (n: number) => String(n).padStart(2, '0')
+
+function localDateKey(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+function slotStartAt(dateStr: string, slot: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number)
+  const [h, min] = slot.split(':').map(Number)
+  const dt = new Date(y, m - 1, d)
+  dt.setHours(h, min, 0, 0)
+  return dt
+}
+
+function earliestBookableAt(minAdvanceSlots: number, now: Date = new Date()): Date {
+  const slots = Math.max(0, minAdvanceSlots ?? 0)
+  const earliest = new Date(now.getTime() + slots * SLOT_MINUTES * 60_000)
+  const minutes = earliest.getMinutes()
+  const remainder = minutes % SLOT_MINUTES
+  if (remainder !== 0 || earliest.getSeconds() > 0 || earliest.getMilliseconds() > 0) {
+    earliest.setMinutes(minutes + (SLOT_MINUTES - remainder), 0, 0)
+  } else {
+    earliest.setSeconds(0, 0)
+  }
+  return earliest
+}
+
+function isSlotTooSoon(dateStr: string, slot: string, minAdvanceSlots: number, now: Date = new Date()): boolean {
+  const todayKey = localDateKey(now)
+  if (dateStr < todayKey) return true
+  if (dateStr > todayKey) return false
+  return slotStartAt(dateStr, slot) < earliestBookableAt(minAdvanceSlots, now)
+}
+
+function filterBookableSlots(dateStr: string, slots: string[], minAdvanceSlots: number, now: Date = new Date()): string[] {
+  const todayKey = localDateKey(now)
+  if (dateStr < todayKey) return []
+  if (dateStr > todayKey) return slots
+  return slots.filter((slot) => !isSlotTooSoon(dateStr, slot, minAdvanceSlots, now))
+}
+
 /**
  * Reads the per-date slot override for a date, if any. Returns the array of
  * "HH:MM" available slots (possibly empty) when the date has an explicit
@@ -28,7 +70,8 @@ async function getSuggestedTimeSlots(
   availableFrom: string,
   availableTo: string,
   googleDoctor?: GoogleDoctor,
-  slotOverrides?: unknown
+  slotOverrides?: unknown,
+  minAdvanceSlots = 2,
 ): Promise<string[]> {
   const dayStart = new Date(`${date}T00:00:00`)
   const dayEnd = new Date(`${date}T23:59:59`)
@@ -83,7 +126,7 @@ async function getSuggestedTimeSlots(
     if (!hasConflict && !hasBusyConflict) slots.push(timeString)
   }
 
-  return slots.slice(0, 10)
+  return filterBookableSlots(date, slots, minAdvanceSlots).slice(0, 10)
 }
 
 export const checkDoctorAvailability = async (req: Request, res: Response): Promise<void> => {
@@ -105,7 +148,7 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
       select: {
         id: true, firstName: true, lastName: true,
         availableFrom: true, availableTo: true,
-        workingDays: true, unavailableDates: true, isActive: true, slotOverrides: true,
+        workingDays: true, unavailableDates: true, isActive: true, slotOverrides: true, minAdvanceSlots: true,
         googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
         specialty: { select: { name: true } },
       },
@@ -136,6 +179,21 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
 
     const availableFrom = doctor.availableFrom ?? '09:00'
     const availableTo = doctor.availableTo ?? '17:00'
+    const minAdvance = doctor.minAdvanceSlots ?? 2
+
+    if (isSlotTooSoon(date, time, minAdvance)) {
+      res.json({
+        success: false, available: false,
+        message:
+          minAdvance === 0
+            ? 'This time slot has already passed'
+            : `Same-day bookings require at least ${minAdvance} slot(s) (${minAdvance * 30} min) advance notice`,
+        doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
+        suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides, minAdvance),
+      })
+      return
+    }
+
     const override = getDateOverride(doctor.slotOverrides, date)
 
     if (override) {
@@ -145,7 +203,7 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
           success: false, available: false,
           message: 'Requested time is not available on this date',
           doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
-          suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides),
+          suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides, minAdvance),
         })
         return
       }
@@ -205,7 +263,7 @@ export const checkDoctorAvailability = async (req: Request, res: Response): Prom
         success: false, available: false,
         message: 'This time slot is already booked',
         doctor: { id: doctor.id, name: `Dr. ${doctor.firstName} ${doctor.lastName}`, specialty: doctor.specialty?.name },
-        suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides),
+        suggestedTimes: await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides, minAdvance),
       })
       return
     }
@@ -237,7 +295,7 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
       select: {
         id: true, firstName: true, lastName: true,
         availableFrom: true, availableTo: true,
-        workingDays: true, unavailableDates: true, isActive: true, slotOverrides: true,
+        workingDays: true, unavailableDates: true, isActive: true, slotOverrides: true, minAdvanceSlots: true,
         googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
         specialty: { select: { name: true } },
       },
@@ -271,7 +329,15 @@ export const getAvailableSlots = async (req: Request, res: Response): Promise<vo
       }
     }
 
-    const slots = await getSuggestedTimeSlots(doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides)
+    const slots = await getSuggestedTimeSlots(
+      doctorId,
+      date,
+      availableFrom,
+      availableTo,
+      doctor,
+      doctor.slotOverrides,
+      doctor.minAdvanceSlots ?? 2,
+    )
 
     res.json({
       success: true,
