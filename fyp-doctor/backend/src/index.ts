@@ -12,6 +12,7 @@ import webhookRoutes from './routes/webhook.routes'
 const app = express()
 const PORT = process.env.PORT || 5001
 
+app.set('trust proxy', 1) // Railway / any reverse proxy — required for rate-limit IP detection
 app.use(helmet())
 app.use(
   cors({

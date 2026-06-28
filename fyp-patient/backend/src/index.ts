@@ -19,6 +19,7 @@ import { startRetentionCron } from './lib/retentionCron'
 const app: Application = express()
 const PORT = process.env.PORT || 5000
 
+app.set('trust proxy', 1) // Railway / any reverse proxy — required for rate-limit IP detection
 app.use(helmet())
 
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, standardHeaders: true, legacyHeaders: false })
