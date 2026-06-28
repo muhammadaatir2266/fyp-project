@@ -14,6 +14,7 @@ import {
   User,
   LogOut,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -60,6 +61,11 @@ const sidebarLinks = [
     title: "Settings",
     href: "/settings",
     icon: Settings,
+  },
+  {
+    title: "Privacy",
+    href: "/settings/privacy",
+    icon: ShieldCheck,
   },
 ];
 

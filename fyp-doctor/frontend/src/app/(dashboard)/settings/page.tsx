@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Settings as SettingsIcon, Lock, Bell, Save } from "lucide-react";
+import Link from "next/link";
+import { Settings as SettingsIcon, Lock, Bell, Save, ShieldCheck } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -170,7 +171,9 @@ export default function SettingsPage() {
             Notification Preferences
           </CardTitle>
           <CardDescription>
-            Manage how you receive notifications
+            Manage how you receive notifications — or visit the{" "}
+            <Link href="/settings/privacy" className="text-primary underline">Privacy page</Link>{" "}
+            for full privacy controls
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -212,6 +215,30 @@ export default function SettingsPage() {
           </Button>
         </CardContent>
       </Card>
+      </motion.div>
+
+      {/* Privacy shortcut */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.3 }}
+      >
+        <Card className="border-primary/20 bg-primary/5">
+          <CardContent className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <ShieldCheck className="h-5 w-5 text-primary" />
+              <div>
+                <p className="text-sm font-medium">Privacy Settings</p>
+                <p className="text-xs text-muted-foreground">
+                  Notification prefs, patient data access controls, and call retention info
+                </p>
+              </div>
+            </div>
+            <Button size="sm" asChild>
+              <Link href="/settings/privacy">Open</Link>
+            </Button>
+          </CardContent>
+        </Card>
       </motion.div>
     </div>
   );

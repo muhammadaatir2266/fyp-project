@@ -32,7 +32,7 @@ function InternalCard({ doc }: { doc: InternalDoctorItem }) {
         >
           <Star className="h-3 w-3 fill-current" />
           <span className="text-xs font-medium">{doc.rating > 0 ? doc.rating.toFixed(1) : "New"}</span>
-          {doc.reviewCount > 0 && (
+          {(doc.reviewCount ?? 0) > 0 && (
             <span className="text-[10px] text-muted-foreground">({doc.reviewCount})</span>
           )}
         </Link>
