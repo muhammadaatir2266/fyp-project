@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { User, Save } from "lucide-react";
+import { User, Save, Star, MessageSquare, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,22 @@ import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 import api from "@/lib/api";
 import type { Doctor } from "@/types";
+
+interface DoctorReview {
+  id: string;
+  rating: number;
+  comment: string | null;
+  createdAt: string;
+  patientInitial: string;
+}
+
+interface ReviewSummary {
+  avgRating: number | null;
+  total: number;
+  page: number;
+  totalPages: number;
+  reviews: DoctorReview[];
+}
 
 const LANGUAGE_OPTIONS = ["English", "Urdu", "Punjabi", "Sindhi", "Pashto", "Balochi"];
 
@@ -30,9 +46,13 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [reviewSummary, setReviewSummary] = useState<ReviewSummary | null>(null);
+  const [reviewPage, setReviewPage] = useState(1);
+  const [loadingReviews, setLoadingReviews] = useState(false);
 
   useEffect(() => {
     fetchProfile();
+    fetchReviews(1);
   }, []);
 
   const fetchProfile = async () => {
@@ -58,6 +78,19 @@ export default function ProfilePage() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const fetchReviews = async (page: number) => {
+    setLoadingReviews(true);
+    try {
+      const res = await api.get(`/doctor/reviews?page=${page}&limit=5`);
+      setReviewSummary((prev) => ({
+        ...res.data,
+        reviews: page === 1 ? res.data.reviews : [...(prev?.reviews ?? []), ...res.data.reviews],
+      }));
+      setReviewPage(page);
+    } catch {}
+    finally { setLoadingReviews(false); }
   };
 
   const handleChange = (field: string, value: string | number | string[]) => {
@@ -109,6 +142,7 @@ export default function ProfilePage() {
           </CardTitle>
           <CardDescription>Update your profile details</CardDescription>
         </CardHeader>
+
         <CardContent className="space-y-4">
           {message && (
             <div
@@ -278,6 +312,68 @@ export default function ProfilePage() {
           </Button>
         </CardContent>
       </Card>
+      </motion.div>
+
+      {/* Patient Reviews */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.2 }}
+      >
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Star className="h-5 w-5 fill-amber-400 text-amber-400" />
+              Patient Reviews
+            </CardTitle>
+            {reviewSummary && reviewSummary.total > 0 && (
+              <CardDescription>
+                {reviewSummary.avgRating?.toFixed(1)} average · {reviewSummary.total} review{reviewSummary.total !== 1 ? "s" : ""}
+              </CardDescription>
+            )}
+          </CardHeader>
+          <CardContent>
+            {reviewSummary === null && loadingReviews ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              </div>
+            ) : !reviewSummary || reviewSummary.total === 0 ? (
+              <div className="text-center py-10 text-muted-foreground">
+                <MessageSquare className="mx-auto h-10 w-10 mb-3 opacity-25" />
+                <p className="font-medium">No patient reviews yet</p>
+                <p className="text-sm mt-1">Reviews will appear here once patients complete appointments with you.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {reviewSummary.reviews.map((r) => (
+                  <div key={r.id} className="rounded-xl border border-border/60 p-4 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-semibold text-primary">
+                          {r.patientInitial}
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {[1, 2, 3, 4, 5].map((s) => (
+                            <Star key={s} className={`h-3.5 w-3.5 ${s <= r.rating ? "fill-amber-400 text-amber-400" : "text-muted-foreground/40"}`} />
+                          ))}
+                        </div>
+                      </div>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(r.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </span>
+                    </div>
+                    {r.comment && <p className="text-sm text-foreground">{r.comment}</p>}
+                  </div>
+                ))}
+                {reviewPage < reviewSummary.totalPages && (
+                  <Button variant="outline" className="w-full" disabled={loadingReviews} onClick={() => fetchReviews(reviewPage + 1)}>
+                    {loadingReviews ? <Loader2 className="h-4 w-4 animate-spin" /> : "Load more"}
+                  </Button>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </motion.div>
     </div>
   );

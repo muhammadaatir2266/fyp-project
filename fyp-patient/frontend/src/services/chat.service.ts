@@ -13,6 +13,7 @@ export interface InternalDoctorItem {
   specialty: string
   city: string
   rating: number
+  reviewCount?: number
   experience: number
   consultationFee: number
   workingHours?: { from: string; to: string }

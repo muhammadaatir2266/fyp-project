@@ -13,6 +13,7 @@ export interface ReviewsResponse {
   total: number
   page: number
   totalPages: number
+  avgRating: number | null
 }
 
 export const submitReview = async (payload: {

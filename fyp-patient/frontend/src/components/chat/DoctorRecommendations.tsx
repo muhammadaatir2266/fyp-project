@@ -18,13 +18,24 @@ function InternalCard({ doc }: { doc: InternalDoctorItem }) {
     <div className="rounded-xl border border-border bg-card p-3 space-y-2">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-foreground truncate">{doc.name}</p>
+          <Link
+            href={`/patient/doctors/${doc.id}`}
+            className="text-sm font-semibold text-foreground truncate hover:text-primary transition-colors"
+          >
+            {doc.name}
+          </Link>
           <p className="text-xs text-muted-foreground">{doc.specialty}</p>
         </div>
-        <div className="flex items-center gap-1 shrink-0 text-amber-500">
+        <Link
+          href={`/patient/doctors/${doc.id}#reviews`}
+          className="flex items-center gap-1 shrink-0 text-amber-500 hover:underline"
+        >
           <Star className="h-3 w-3 fill-current" />
           <span className="text-xs font-medium">{doc.rating > 0 ? doc.rating.toFixed(1) : "New"}</span>
-        </div>
+          {doc.reviewCount > 0 && (
+            <span className="text-[10px] text-muted-foreground">({doc.reviewCount})</span>
+          )}
+        </Link>
       </div>
 
       <div className="flex flex-wrap gap-x-3 gap-y-1">

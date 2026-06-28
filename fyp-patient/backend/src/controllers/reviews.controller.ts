@@ -77,7 +77,7 @@ export const getDoctorReviews = async (req: Request, res: Response, next: NextFu
     const limit = Math.min(20, Math.max(1, parseInt((req.query.limit as string) || '10')))
     const skip = (page - 1) * limit
 
-    const [reviews, total] = await Promise.all([
+    const [reviews, total, agg] = await Promise.all([
       prisma.doctorReview.findMany({
         where: { doctorId },
         orderBy: { createdAt: 'desc' },
@@ -88,6 +88,7 @@ export const getDoctorReviews = async (req: Request, res: Response, next: NextFu
         },
       }),
       prisma.doctorReview.count({ where: { doctorId } }),
+      prisma.doctorReview.aggregate({ where: { doctorId }, _avg: { rating: true } }),
     ])
 
     const formatted = reviews.map((r) => ({
@@ -98,7 +99,13 @@ export const getDoctorReviews = async (req: Request, res: Response, next: NextFu
       patientInitial: r.patient.firstName.charAt(0).toUpperCase() + '.',
     }))
 
-    res.json({ reviews: formatted, total, page, totalPages: Math.ceil(total / limit) })
+    res.json({
+      reviews: formatted,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+      avgRating: agg._avg.rating ? Math.round(agg._avg.rating * 10) / 10 : null,
+    })
   } catch (error) {
     next(error)
   }

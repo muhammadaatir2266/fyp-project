@@ -630,12 +630,16 @@ function DoctorsContent() {
             const displayRating = doctor.recencyRating ?? doctor.rating;
             const nextSlot = formatNextSlot(doctor.nextAvailableAt);
             return (
-              <Card key={doctor.id} className="hover:shadow-md transition-shadow border-border/50">
+                <Card key={doctor.id} className="hover:shadow-md transition-shadow border-border/50">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <CardTitle className="text-lg">Dr. {doctor.fullName}</CardTitle>
+                        <CardTitle className="text-lg">
+                          <Link href={`/patient/doctors/${doctor.id}`} className="hover:text-primary transition-colors">
+                            Dr. {doctor.fullName}
+                          </Link>
+                        </CardTitle>
                         {doctor.isPlatformVerified && (
                           <Badge variant="secondary" className="flex items-center gap-1 text-xs bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800">
                             <ShieldCheck className="h-3 w-3" />
@@ -743,13 +747,13 @@ function DoctorsContent() {
                       </Button>
                     )}
 
-                    {doctor.reviewCount > 0 && (
-                      <Button size="sm" variant="ghost" className="gap-1 text-xs px-2" onClick={() => setReviewsDoctor(doctor)}>
+                    <Button size="sm" variant="ghost" className="gap-1 text-xs px-2" asChild>
+                      <Link href={`/patient/doctors/${doctor.id}#reviews`}>
                         <Star className="h-3.5 w-3.5" />
-                        Reviews
+                        {doctor.reviewCount > 0 ? `${doctor.reviewCount} Review${doctor.reviewCount !== 1 ? "s" : ""}` : "Reviews"}
                         <ChevronRight className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                      </Link>
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
