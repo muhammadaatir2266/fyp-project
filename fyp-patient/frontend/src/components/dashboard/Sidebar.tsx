@@ -6,7 +6,6 @@ import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
   Calendar,
-  FileText,
   User,
   LogOut,
   Settings,
@@ -40,11 +39,6 @@ const sidebarLinks = [
     title: "Appointments",
     href: "/patient/appointments",
     icon: Calendar,
-  },
-  {
-    title: "Symptom Log",
-    href: "/patient/symptoms",
-    icon: FileText,
   },
   {
     title: "Profile",
