@@ -421,6 +421,8 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
       where: { id: doctorId },
       select: {
         id: true, firstName: true, lastName: true, isActive: true,
+        availableFrom: true, availableTo: true,
+        workingDays: true, unavailableDates: true, slotOverrides: true, minAdvanceSlots: true,
         googleCalendarConnected: true, googleRefreshToken: true, googleCalendarId: true,
       },
     })
@@ -429,6 +431,79 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
       res.status(404).json({ success: false, message: 'Doctor not found or not active' })
       return
     }
+
+    // ── Temporal validation ────────────────────────────────────────────────────
+    const scheduledAt = civilSlotToDate(date, time)
+    const minAdvance = doctor.minAdvanceSlots ?? 2
+
+    if (scheduledAt <= new Date()) {
+      res.status(400).json({
+        success: false,
+        message: 'Cannot book appointments in the past',
+        suggestedTimes: await getSuggestedTimeSlots(
+          doctorId, date,
+          doctor.availableFrom ?? '09:00', doctor.availableTo ?? '17:00',
+          doctor, doctor.slotOverrides, minAdvance,
+        ),
+      })
+      return
+    }
+
+    if (isSlotTooSoon(date, time, minAdvance)) {
+      res.status(400).json({
+        success: false,
+        message: minAdvance === 0
+          ? 'This time slot has already passed'
+          : `Bookings require at least ${minAdvance} slot(s) (${minAdvance * 30} min) advance notice`,
+        suggestedTimes: await getSuggestedTimeSlots(
+          doctorId, date,
+          doctor.availableFrom ?? '09:00', doctor.availableTo ?? '17:00',
+          doctor, doctor.slotOverrides, minAdvance,
+        ),
+      })
+      return
+    }
+
+    // ── Schedule validation ────────────────────────────────────────────────────
+    const availableFrom = doctor.availableFrom ?? '09:00'
+    const availableTo   = doctor.availableTo   ?? '17:00'
+    const override      = getDateOverride(doctor.slotOverrides, date)
+    const dayOfWeek     = civilWeekday(civilSlotToDate(date, '12:00'))
+
+    if (override) {
+      if (!override.includes(time)) {
+        res.status(400).json({
+          success: false,
+          message: 'Requested time is not available on this date',
+          suggestedTimes: await getSuggestedTimeSlots(
+            doctorId, date, availableFrom, availableTo, doctor, doctor.slotOverrides, minAdvance,
+          ),
+        })
+        return
+      }
+    } else {
+      if (doctor.unavailableDates?.includes(date)) {
+        res.status(400).json({ success: false, message: 'Doctor is not available on this date' })
+        return
+      }
+      if (!doctor.workingDays?.includes(dayOfWeek)) {
+        res.status(400).json({
+          success: false,
+          message: `Doctor does not work on ${dayOfWeek}`,
+          workingDays: doctor.workingDays ?? [],
+        })
+        return
+      }
+      if (time < availableFrom || time >= availableTo) {
+        res.status(400).json({
+          success: false,
+          message: "Requested time is outside the doctor's working hours",
+          workingHours: { from: availableFrom, to: availableTo },
+        })
+        return
+      }
+    }
+    // ──────────────────────────────────────────────────────────────────────────
 
     let patient = null
 
@@ -507,7 +582,6 @@ export const bookAppointment = async (req: Request, res: Response): Promise<void
     }
 
     // Pre-create conflict guard: reject if slot is already taken.
-    const scheduledAt = civilSlotToDate(date, time)
     const slotEnd = new Date(scheduledAt.getTime() + 30 * 60_000)
     const { start: cbDayStart, end: cbDayEnd } = civilDayBounds(date)
     const conflictAppts = await prisma.appointment.findMany({
