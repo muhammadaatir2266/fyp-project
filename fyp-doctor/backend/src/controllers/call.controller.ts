@@ -8,9 +8,21 @@ export const getCalls = async (req: Request, res: Response): Promise<void> => {
     const calls = await prisma.callLog.findMany({
       where: { doctorId },
       orderBy: { startedAt: 'desc' },
+      include: {
+        patient: { select: { firstName: true, lastName: true } },
+      },
     })
 
-    res.json(calls)
+    // Enrich callerName from linked patient when it was not stored on the log
+    const enriched = calls.map((call) => {
+      const name =
+        call.callerName ??
+        (call.patient ? `${call.patient.firstName} ${call.patient.lastName}`.trim() : null)
+      const { patient: _patient, ...rest } = call
+      return { ...rest, callerName: name }
+    })
+
+    res.json(enriched)
   } catch (error) {
     console.error('Get calls error:', error)
     res.status(500).json({ message: 'Server error' })

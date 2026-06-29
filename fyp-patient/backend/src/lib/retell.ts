@@ -43,6 +43,7 @@ export async function createRetellWebCall(opts: CreateWebCallOptions) {
       doctorId: opts.doctorId,
       patientId: opts.patientId,
       intentId: opts.intentId,
+      callerName: opts.patientName,  // used by webhook handler to populate CallLog.callerName
     },
     retell_llm_dynamic_variables: {
       patient_id: opts.patientId,

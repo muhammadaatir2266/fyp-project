@@ -162,6 +162,7 @@ model Patient {
   chatSessions      ChatSession[]
   reviews           DoctorReview[]
   callBookingIntents CallBookingIntent[]
+  callLogs          CallLog[]
 }
 
 model Doctor {
@@ -408,6 +409,8 @@ model CallLog {
   id          String     @id @default(uuid())
   doctorId    String
   doctor      Doctor     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patientId   String?
+  patient     Patient?   @relation(fields: [patientId], references: [id], onDelete: SetNull)
   callerName  String?
   callerPhone String
   callType    CallType

@@ -171,11 +171,22 @@ export const retellWebhook = async (req: Request, res: Response): Promise<void> 
     const isWebCall = !callObj?.from_number || callObj.from_number === ''
     const callerPhone = isWebCall ? 'web' : (callObj?.from_number ?? 'unknown')
 
+    // Resolve caller name: prefer metadata (set at call creation), fall back to DB patient lookup
+    let callerName = (metadata?.callerName as string) ?? null
+    if (!callerName && patientId) {
+      const patient = await prisma.patient.findUnique({
+        where: { id: patientId },
+        select: { firstName: true, lastName: true },
+      })
+      if (patient) callerName = `${patient.firstName} ${patient.lastName}`.trim()
+    }
+
     await prisma.callLog.create({
       data: {
         doctorId,
+        patientId: patientId ?? null,
         callerPhone,
-        callerName: (metadata?.callerName as string) ?? null,
+        callerName,
         callType: 'INCOMING',
         status: callObj?.call_status === 'error' ? 'FAILED' : 'COMPLETED',
         startedAt: callObj?.start_timestamp ? new Date(callObj.start_timestamp) : new Date(),
