@@ -1,194 +1,254 @@
-# MedAssistant Backend
+# DocLink — Patient Backend
 
-Backend API server for the AI Medical Assistant application with JWT-based authentication and n8n webhook integration.
-
-## Features
-
-- 🔐 JWT-based authentication
-- 👥 User management (Patients, Doctors, Admins)
-- 💬 Chat integration with n8n webhook
-- 🗄️ PostgreSQL database with Prisma ORM
-- 🛡️ Security with Helmet and CORS
-- ✅ Input validation with Zod
+Express.js REST API for the DocLink patient portal. Handles authentication, AI chat (via n8n), Retell voice call sessions, appointment booking, doctor reviews, and patient privacy settings.
 
 ## Tech Stack
 
-- **Runtime**: Node.js with TypeScript
-- **Framework**: Express.js
-- **Database**: PostgreSQL with Prisma ORM
-- **Authentication**: JWT (jsonwebtoken)
-- **Password Hashing**: bcryptjs
-- **Validation**: Zod
-- **HTTP Client**: Axios
+| Layer | Technology |
+|-------|-----------|
+| Runtime | Node.js 18+ / TypeScript |
+| Framework | Express 4 |
+| Database | PostgreSQL via Prisma ORM |
+| Auth | JWT (jsonwebtoken) + bcryptjs |
+| Validation | Zod |
+| AI Chat | n8n webhook |
+| Voice | Retell SDK |
+| Security | Helmet, express-rate-limit, CORS |
+| Scheduling | node-cron (data retention) |
 
 ## Setup
 
 ### Prerequisites
 
-- Node.js 18+ or 20+
-- PostgreSQL database
-- pnpm (or npm/yarn)
+- Node.js 18+
+- pnpm
+- PostgreSQL database (shared with doctor and admin backends)
 
 ### Installation
 
-1. Install dependencies:
-
 ```bash
+cd fyp-patient/backend
 pnpm install
 ```
 
-2. Create `.env` file from example:
-
-```bash
-cp env.example .env
-```
-
-3. Update `.env` with your configuration:
+Create a `.env` file:
 
 ```env
-DATABASE_URL="postgresql://username:password@localhost:5432/medical_assistant?schema=public"
-JWT_SECRET=your_super_secret_jwt_key_here
-N8N_CHAT_WEBHOOK_URL=https://fyp2026.app.n8n.cloud/webhook/55479a0c-6a9f-4083-ad95-8cbe28d9e828
+DATABASE_URL="postgresql://user:password@host:5432/doclink"
+JWT_SECRET="a-long-random-secret-min-32-chars"
+N8N_CHAT_WEBHOOK_URL="https://your-n8n-instance/webhook/..."
+RETELL_API_KEY="key_..."
+RETELL_AGENT_ID="agent_..."
+FRONTEND_URL="http://localhost:3000"
+WEBSITE_URL="http://localhost:3003"
 ```
 
-4. Generate Prisma client and run migrations:
+### Database
+
+This backend owns the shared database migrations. Run these once before starting any backend:
 
 ```bash
-pnpm db:generate
-pnpm db:migrate
-```
-
-5. (Optional) Seed the database:
-
-```bash
-pnpm db:seed
+pnpm db:generate   # generate Prisma client
+pnpm db:migrate    # apply all migrations
+pnpm db:seed       # optional — load demo data (dev only)
 ```
 
 ### Development
 
-Start the development server:
-
 ```bash
-pnpm dev
+pnpm dev   # starts on http://localhost:5000
 ```
 
-Server will run on `http://localhost:5000`
-
 ### Production
-
-Build and start:
 
 ```bash
 pnpm build
 pnpm start
 ```
 
+## Environment Variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DATABASE_URL` | Yes | — | PostgreSQL connection string |
+| `JWT_SECRET` | Yes | — | JWT signing secret (must be set in production) |
+| `JWT_EXPIRES_IN` | No | `7d` | Token lifetime |
+| `N8N_CHAT_WEBHOOK_URL` | Yes | — | n8n webhook URL for AI chat |
+| `RETELL_API_KEY` | Yes | — | Retell API key (starts with `key_`) |
+| `RETELL_AGENT_ID` | Yes | — | Retell agent ID (starts with `agent_`) |
+| `FRONTEND_URL` | No | `http://localhost:3000` | Patient frontend URL (CORS) |
+| `WEBSITE_URL` | No | `http://localhost:3003` | Website URL (CORS + redirects) |
+| `APPOINTMENT_TIMEZONE` | No | `Asia/Karachi` | Timezone for slot calculations |
+| `PORT` | No | `5000` | Server port |
+| `NODE_ENV` | No | `development` | Set to `production` to enforce strict secrets |
+
+> In `production`, the server exits at startup if `JWT_SECRET` is not set or is a known default value.
+
 ## API Endpoints
 
-### Authentication
+### Public
 
-- `POST /api/auth/login` - Login with email/password
-- `POST /api/auth/signup` - Register new user
-- `POST /api/auth/signup/doctor` - Complete doctor registration (protected)
-- `GET /api/auth/me` - Get current user (protected)
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Service health check |
+| POST | `/api/auth/login` | Patient login |
+| POST | `/api/auth/signup` | Patient registration |
+| GET | `/api/auth/specialties` | List medical specialties |
+| POST | `/api/chat/guest/message` | Send message as unauthenticated guest |
+| POST | `/api/chat/guest/snapshot` | Save guest chat session snapshot |
+| GET | `/api/config/booking` | Booking configuration (timezone, slot size) |
 
-### Chat
+### Authenticated (JWT required — PATIENT role)
 
-- `POST /api/chat/message` - Send message to n8n webhook (protected, patient only)
+#### Auth
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/auth/me` | Get current user profile |
+
+#### Chat
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/chat/guest/claim` | Claim a guest chat session after login |
+| POST | `/api/chat/message` | Send chat message to AI assistant |
+| GET | `/api/chat/sessions` | List patient's chat sessions |
+
+#### Appointments
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/appointments` | List patient appointments |
+| GET | `/api/appointments/:id` | Get appointment details |
+| POST | `/api/appointments` | Book an appointment |
+| POST | `/api/appointments/voice-call` | Start a Retell voice call session |
+| POST | `/api/appointments/call-intent` | Create a call booking intent |
+| PATCH | `/api/appointments/:id` | Update appointment (cancel / reschedule) |
+
+#### Doctors
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/doctors` | Search doctors |
+| GET | `/api/doctors/:id` | Doctor profile |
+| GET | `/api/doctors/:id/slots` | Available time slots for a date |
+| GET | `/api/doctors/:id/reviews` | Doctor reviews |
+
+#### Profile
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/api/profile` | Get patient profile |
+| PUT | `/api/profile` | Update patient profile |
+| PUT | `/api/profile/password` | Change password |
+| GET | `/api/profile/privacy` | Get privacy settings |
+| PUT | `/api/profile/privacy` | Update privacy settings |
+| DELETE | `/api/profile/chat-sessions` | Delete all chat sessions |
+
+#### Reviews
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/reviews` | Submit a doctor review |
 
 ## Authentication Flow
 
-1. User signs up or logs in
-2. Backend validates credentials and generates JWT token
-3. Frontend stores token in localStorage
-4. Frontend includes token in `Authorization: Bearer <token>` header
-5. Backend middleware verifies token on protected routes
+1. Patient signs up or logs in → receives a JWT
+2. JWT is stored in `localStorage` and a session cookie is set for Next.js middleware
+3. All protected requests include `Authorization: Bearer <token>`
+4. Middleware verifies the token and re-checks the `PATIENT` role against the database
 
-## Chat Integration
+## AI Chat Flow
 
-The chat endpoint:
-1. Receives message from authenticated patient
-2. Extracts patient_id from JWT token
-3. Calls n8n webhook with patient_id, message, and user_info
-4. Returns webhook response to frontend
-
-### Webhook Payload Format
-
-```json
-{
-  "patient_id": "uuid",
-  "message": "user message",
-  "user_info": {
-    "email": "patient@example.com",
-    "firstName": "John",
-    "lastName": "Doe",
-    "phone": "+1234567890",
-    "dateOfBirth": "1990-01-01",
-    "gender": "MALE",
-    "medicalHistory": "...",
-    "allergies": "..."
-  },
-  "location": "City Name",
-  "timestamp": "2024-01-01T00:00:00.000Z"
-}
+```
+Patient message
+    │
+    ▼
+POST /api/chat/message
+    │
+    ├─ Check patient.shareDataWithAI
+    │   └─ If false: strip PHI from payload before forwarding
+    │
+    ▼
+n8n webhook (N8N_CHAT_WEBHOOK_URL)
+    │
+    ▼
+n8n processes + calls OpenAI / recommends doctors
+    │
+    ▼
+Response returned to patient
 ```
 
-## Environment Variables
+## Voice Call Flow
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `PORT` | Server port | No (default: 5000) |
-| `NODE_ENV` | Environment (development/production) | No |
-| `FRONTEND_URL` | Frontend URL for CORS | No (default: http://localhost:3000) |
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `JWT_SECRET` | Secret for JWT signing | Yes |
-| `JWT_EXPIRES_IN` | Token expiration time | No (default: 7d) |
-| `N8N_CHAT_WEBHOOK_URL` | n8n webhook URL for chat | Yes |
+```
+Patient opens voice widget
+    │
+    ▼
+POST /api/appointments/voice-call
+    │  creates CallBookingIntent in DB
+    ▼
+POST Retell.createWebCall (with patientId, doctorId, metadata)
+    │
+    ▼
+Retell agent conducts the call
+    │
+    ▼
+POST /api/v1/doctors/:id/appointments (Admin API — called by Retell)
+```
 
-## Database Schema
+## Privacy Settings
 
-Key models:
-- `User` - Authentication and role management
-- `Patient` - Patient profile and medical info
-- `Doctor` - Doctor profile and availability
-- `ChatSession` - Chat conversation tracking
-- `ChatMessage` - Individual chat messages
-- `Appointment` - Appointment bookings
-- `Specialty` - Medical specialties
-- `Disease` - Disease information
-- `Symptom` - Symptom catalog
+Patients control two privacy flags via `/api/profile/privacy`:
+
+| Flag | Default | Effect |
+|------|---------|--------|
+| `shareDataWithAI` | `true` | If `false`, PHI is stripped before forwarding to n8n |
+| `allowDoctorChatAccess` | `true` | If `false`, doctors cannot view the patient's chat history |
+
+Patients can also delete all their chat history via `DELETE /api/profile/chat-sessions`.
 
 ## Security
 
-- Passwords hashed with bcryptjs (10 salt rounds)
-- JWT tokens for stateless authentication
-- CORS enabled for frontend origin only
-- Helmet.js for security headers
-- Input validation with Zod schemas
-- SQL injection prevention via Prisma ORM
+- **Rate limiting**: `/api/auth/*` → 30 req / 15 min; `/api/chat/*` → 20 req / 1 min
+- **Helmet**: sets secure HTTP headers on all responses
+- **CORS**: restricted to `FRONTEND_URL` and `WEBSITE_URL`
+- **Zod validation**: all request bodies validated before processing
+- **bcryptjs**: passwords hashed with 10 salt rounds
+- **PHI redaction**: sensitive fields stripped from API logs in production
+- **JWT enforcement**: production startup fails if secret is default or missing
 
-## Error Handling
+## Data Retention Cron
 
-The API uses standard HTTP status codes:
-- `200` - Success
-- `201` - Created
-- `400` - Bad Request (validation error)
-- `401` - Unauthorized (missing/invalid token)
-- `403` - Forbidden (insufficient permissions)
-- `404` - Not Found
-- `409` - Conflict (duplicate resource)
-- `500` - Internal Server Error
+An hourly cron job automatically purges:
 
-Error response format:
+| Record | TTL |
+|--------|-----|
+| `GuestChatSnapshot` | 24 hours |
+| `CallBookingIntent` | 30 minutes |
+| `ApiLog` | 90 days |
+
+## Database Schema (key models)
+
+| Model | Description |
+|-------|-------------|
+| `User` | Authentication — email, hashed password, role |
+| `Patient` | Profile, medical history, privacy flags |
+| `Doctor` | Profile, availability, Google Calendar, ratings |
+| `ChatSession` / `ChatMessage` | AI chat history |
+| `Appointment` | Bookings with status, source, Google event ID |
+| `DoctorReview` | Patient reviews with anonymised `patientInitial` |
+| `CallBookingIntent` | Short-lived intent linking a voice call to a patient |
+| `GuestChatSnapshot` | Ephemeral anonymous session, expires after 24 h |
+| `ApiLog` | Request/response audit log (PHI-redacted) |
+| `Specialty` | Medical specialties with aliases |
+
+## Error Responses
+
+| Status | Meaning |
+|--------|---------|
+| 400 | Validation error or bad request |
+| 401 | Missing or invalid JWT |
+| 403 | Authenticated but wrong role |
+| 404 | Resource not found |
+| 409 | Conflict (e.g. slot already booked) |
+| 429 | Rate limit exceeded |
+| 500 | Internal server error |
+
 ```json
-{
-  "error": "Error message"
-}
+{ "message": "Error description" }
 ```
-
-## Development Notes
-
-- Use `pnpm dev` for hot-reload during development
-- Prisma Studio: `npx prisma studio` to view/edit database
-- Database migrations: `pnpm db:migrate`
-- Generate Prisma client: `pnpm db:generate`

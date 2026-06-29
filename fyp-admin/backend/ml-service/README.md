@@ -81,8 +81,24 @@ docker build -t disease-prediction-api .
 docker run -p 7860:7860 disease-prediction-api
 ```
 
+## Integration via Admin API
+
+In production, all ML endpoints are proxied through the admin backend and require an API token:
+
+| Direct ML path | Admin proxy path |
+|----------------|-----------------|
+| `POST /predict` | `POST /api/v1/ml/predict` |
+| `GET /symptoms` | `GET /api/v1/ml/symptoms` |
+| `GET /diseases` | `GET /api/v1/ml/diseases` |
+| `GET /health` | `GET /api/v1/ml/health` |
+
+Include an `Authorization: Bearer <api-token>` header with every request to the admin proxy. Tokens are generated and managed in the Admin Panel under **API Access**.
+
+The admin backend connects to the ML service using the `ML_SERVICE_URL` environment variable (default: `http://127.0.0.1:5001`).
+
 ## Notes
 
 - Model files are loaded on startup and kept in memory for fast predictions
 - The API uses CORS middleware for cross-origin requests
 - Comprehensive logging for debugging and monitoring
+- For standalone deployment, see `DEPLOYMENT.md`

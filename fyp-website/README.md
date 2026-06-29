@@ -1,36 +1,128 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# DocLink — Marketing Website
 
-## Getting Started 
+Public-facing marketing website for the DocLink healthcare platform. Includes guest AI chat, patient/doctor sign-up flows, and links to all portals.
 
-First, run the development server:
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 |
+| Animation | Framer Motion |
+| HTTP | Axios |
+| Markdown | react-markdown |
+
+## Setup
+
+### Prerequisites
+
+- Node.js 18+
+- pnpm
+- Patient backend running on port 5000
+
+### Installation
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cd fyp-website
+pnpm install
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create `.env.local`:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```env
+NEXT_PUBLIC_AUTH_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_PATIENT_APP_URL=http://localhost:3000
+NEXT_PUBLIC_DOCTOR_APP_URL=http://localhost:3001
+NEXT_PUBLIC_ADMIN_APP_URL=http://localhost:3002
+NEXT_PUBLIC_ROOT_URL=http://localhost:3003
+NEXT_PUBLIC_APP_URL=http://localhost:3003
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Development
 
-## Learn More
+```bash
+pnpm dev   # http://localhost:3003
+```
 
-To learn more about Next.js, take a look at the following resources:
+### Production build
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+pnpm build
+pnpm start
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Environment Variables
 
-## Deploy on Vercel
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `NEXT_PUBLIC_AUTH_API_URL` | Yes | `http://localhost:5000/api` | Patient backend API URL |
+| `NEXT_PUBLIC_PATIENT_APP_URL` | Yes | `http://localhost:3000` | Patient portal URL (CTA links) |
+| `NEXT_PUBLIC_DOCTOR_APP_URL` | Yes | `http://localhost:3001` | Doctor portal URL (sign-up links) |
+| `NEXT_PUBLIC_ADMIN_APP_URL` | No | `http://localhost:3002` | Admin portal URL |
+| `NEXT_PUBLIC_ROOT_URL` | No | `/` | This website's own URL |
+| `NEXT_PUBLIC_APP_URL` | No | — | Used by CTA buttons across marketing pages |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Pages and Routes
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Marketing Pages
+
+| Route | Description |
+|-------|-------------|
+| `/` | Homepage — platform overview and key features |
+| `/about` | About DocLink |
+| `/features` | Feature breakdown for patients and doctors |
+| `/pricing` | Pricing tiers |
+| `/faq` | Frequently asked questions |
+| `/contact` | Contact form |
+| `/privacy` | Privacy policy |
+| `/terms` | Terms of service |
+
+### Auth & Sign-up
+
+| Route | Description |
+|-------|-------------|
+| `/login` | Shared login — redirects patients to `:3000`, doctors to `:3001`, admins to `:3002` |
+| `/signup` | Sign-up role selector |
+| `/signup/patient` | Patient registration wizard |
+| `/signup/doctor` | Redirects to the doctor portal sign-up at `:3001/signup` |
+
+### Guest AI Chat
+
+| Route | Description |
+|-------|-------------|
+| `/chat` | AI symptom chat for unauthenticated users |
+
+## Guest Chat Flow
+
+Unauthenticated users can interact with the AI assistant without creating an account:
+
+```
+Guest opens /chat
+    │
+    ▼
+POST /api/chat/guest/message   (no auth required)
+    │  backend assigns a guestSessionId cookie
+    ▼
+Conversation continues (messages stored in GuestChatSnapshot)
+    │
+    ├─ Guest closes tab → snapshot auto-expires after 24 hours
+    │
+    └─ Guest signs up or logs in
+           │
+           ▼
+       POST /api/chat/guest/claim   (JWT required)
+           │  transfers snapshot to authenticated ChatSession
+           ▼
+       Conversation continues in patient portal
+```
+
+## Authentication Redirect Logic
+
+The `/login` page calls `GET /api/auth/me` with the stored JWT and redirects based on role:
+
+| Role | Redirect |
+|------|---------|
+| `PATIENT` | `NEXT_PUBLIC_PATIENT_APP_URL/patient/dashboard` |
+| `DOCTOR` | `NEXT_PUBLIC_DOCTOR_APP_URL/dashboard` |
+| `ADMIN` | `NEXT_PUBLIC_ADMIN_APP_URL/dashboard` |
