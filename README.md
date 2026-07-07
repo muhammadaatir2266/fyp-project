@@ -1,6 +1,6 @@
 # DocLink — AI Healthcare Platform
 
-DocLink is a multi-portal healthcare platform that connects patients with doctors through AI-assisted chat, voice calling, online appointment booking, and disease prediction. It consists of seven services organized as a monorepo.
+DocLink is a multi-portal healthcare platform that connects patients with doctors through AI-assisted chat care, voice calling, online appointment booking, and disease prediction. It consists of seven services organized as a monorepo.
 
 ## Architecture
 
