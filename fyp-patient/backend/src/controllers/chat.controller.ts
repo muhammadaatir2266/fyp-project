@@ -23,6 +23,9 @@ const WEBHOOK_URL =
   process.env.N8N_CHAT_WEBHOOK_URL ||
   'https://fyp2026.app.n8n.cloud/webhook/55479a0c-6a9f-4083-ad95-8cbe28d9e828'
 
+// n8n workflows (LLM + doctor lookup) can exceed 2 min — allow up to 5 min
+const N8N_WEBHOOK_TIMEOUT_MS = 300_000
+
 async function resolveN8nLocation(opts: {
   clientLocation?: string
   patient?: { city: string | null; latitude: number | null; longitude: number | null }
@@ -112,7 +115,7 @@ export const sendMessage = async (req: Request, res: Response, next: NextFunctio
     // Call n8n webhook
     const webhookResponse = await axios.post(WEBHOOK_URL, webhookPayload, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 120000,
+      timeout: N8N_WEBHOOK_TIMEOUT_MS,
     })
 
     const n8nData = webhookResponse.data
@@ -234,7 +237,7 @@ export const sendGuestMessage = async (req: Request, res: Response, next: NextFu
 
     const webhookResponse = await axios.post(WEBHOOK_URL, webhookPayload, {
       headers: { 'Content-Type': 'application/json' },
-      timeout: 120000,
+      timeout: N8N_WEBHOOK_TIMEOUT_MS,
     })
 
     const n8nData = webhookResponse.data

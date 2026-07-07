@@ -82,10 +82,14 @@ export const sendMessage = async (
   location?: string,
   sessionId?: string
 ): Promise<ChatResponse> => {
-  const response = await api.post('/chat/message', {
-    message,
-    ...(location && { location }),
-    ...(sessionId && { sessionId }),
-  })
+  const response = await api.post(
+    '/chat/message',
+    {
+      message,
+      ...(location && { location }),
+      ...(sessionId && { sessionId }),
+    },
+    { timeout: 310_000 }
+  )
   return response.data
 }

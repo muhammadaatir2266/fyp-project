@@ -12,7 +12,10 @@ const PHASES = [
   { after: 30000,   text: "Almost ready, thank you for waiting…" },
   { after: 55000,   text: "Your patience means a lot, hang in there…" },
   { after: 85000,   text: "Still with you, just a little longer…" },
-  { after: 110000,  text: "Nearly there, thank you for your patience…" },
+  { after: 120000,  text: "Nearly there, thank you for your patience…" },
+  { after: 180000,  text: "Taking extra care with your symptoms…" },
+  { after: 240000,  text: "Almost done, thank you for staying with us…" },
+  { after: 280000,  text: "Just a moment more, we're nearly finished…" },
 ];
 
 export function LoadingText() {

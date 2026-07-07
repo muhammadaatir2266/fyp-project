@@ -51,6 +51,7 @@ export async function sendGuestMessage(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ message, guestSessionId, ...(location && { location }) }),
+    signal: AbortSignal.timeout(310_000),
   });
 
   if (!res.ok) {
